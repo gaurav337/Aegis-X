@@ -1,4 +1,3 @@
-
 🛡️ Aegis-X: The Offline Deepfake Forensic Engine
 Next-Gen Artifact Detection using AIMv2, Intrinsic Dimensionality & rPPG (Edge-Optimized)
 📖 Executive Summary
