@@ -1,6 +1,6 @@
 <a id="top"></a>
 
-# ðŸ›¡ï¸ Aegis-X: Agentic Multi-Modal Forensic Engine
+# 🛡️ Aegis-X: Agentic Multi-Modal Forensic Engine
 
 > **The 2026 SOTA Deepfake Detection & Verification System**
 > *An Autonomous Vision-Language Agent for Zero-Trust Media Authentication*
@@ -15,7 +15,7 @@
 
 ---
 
-## ðŸ“– Table of Contents
+## 📖 Table of Contents
 
 1.  [Executive Summary](#-executive-summary)
 2.  [Key Features](#-key-features)
@@ -58,7 +58,7 @@
 
 ---
 
-## ðŸ“ Executive Summary
+## 📝 Executive Summary
 
 **Aegis-X** is an **agentic vision-language forensic system** where an LLM autonomously orchestrates multiple visual and physical analysis tools to reach an explainable verdict.
 
@@ -75,24 +75,24 @@ Unlike traditional deepfake detectors that run a fixed sequence of modules, Aegi
 
 ---
 
-## âœ¨ Key Features
+## ✨ Key Features
 
 | Feature | Description |
 |:--------|:------------|
-| ðŸ§  **Agentic Reasoning** | Not a fixed pipeline â€” an LLM dynamically plans, adapts, and stops analysis based on evidence |
-| ðŸŽ¥ **Multi-Modal Analysis** | Processes video, image, and audio signals in a single unified workflow |
-| ðŸ”’ **100% Offline / Privacy-First** | All models run locally â€” no data ever leaves your machine (GDPR-ready) |
-| ðŸ’¡ **Explainable AI Verdicts** | Every verdict comes with natural-language reasoning grounded in visual evidence |
-| ðŸ” **C2PA Provenance Verification** | Cryptographically verifies Content Credentials from cameras and editing software |
-| ðŸ’¾ **Memory & Experience Learning** | Agent remembers past cases and artifact patterns for smarter future decisions |
-| âš¡ **Early Stopping** | Halts analysis when confidence is high, saving 40-80% compute on clear cases |
-| ðŸ§‘â€âš–ï¸ **Human Escalation** | Automatically flags ambiguous cases (confidence 0.5â€“0.9) for manual review |
-| ðŸ«€ **Biological Signal Detection** | Extracts pulse (rPPG) and corneal reflections to verify physical presence |
-| ðŸ”¬ **Frequency-Domain Forensics** | DCT analysis survives social-media compression that destroys pixel-level artifacts |
+| 🧠 **Agentic Reasoning** | Not a fixed pipeline — an LLM dynamically plans, adapts, and stops analysis based on evidence |
+| 🎥 **Multi-Modal Analysis** | Processes video, image, and audio signals in a single unified workflow |
+| 🔒 **100% Offline / Privacy-First** | All models run locally — no data ever leaves your machine (GDPR-ready) |
+| 💡 **Explainable AI Verdicts** | Every verdict comes with natural-language reasoning grounded in visual evidence |
+| 🔏 **C2PA Provenance Verification** | Cryptographically verifies Content Credentials from cameras and editing software |
+| 💾 **Memory & Experience Learning** | Agent remembers past cases and artifact patterns for smarter future decisions |
+| ⚡ **Early Stopping** | Halts analysis when confidence is high, saving 40-80% compute on clear cases |
+| 🧑‍⚖️ **Human Escalation** | Automatically flags ambiguous cases (confidence 0.5–0.9) for manual review |
+| 🫀 **Biological Signal Detection** | Extracts pulse (rPPG) and corneal reflections to verify physical presence |
+| 🔬 **Frequency-Domain Forensics** | DCT analysis survives social-media compression that destroys pixel-level artifacts |
 
 ---
 
-## ðŸš€ Quick Start
+## 🚀 Quick Start
 
 ### System Requirements
 
@@ -201,7 +201,7 @@ Create the models directory first:
 mkdir -p models
 ```
 
-#### 1. MiniCPM-V 2.6 (Agent Brain) â€” 3.2 GB
+#### 1. MiniCPM-V 2.6 (Agent Brain) — 3.2 GB
 
 This is the main reasoning engine that controls all agent decisions.
 
@@ -233,7 +233,7 @@ ollama pull minicpm-v
 
 ---
 
-#### 2. AIMv2-Large (Entropy Analysis) â€” 800 MB
+#### 2. AIMv2-Large (Entropy Analysis) — 800 MB
 
 Apple's autoregressive image model for detecting generative artifacts.
 
@@ -255,7 +255,7 @@ The model will automatically download required files including config.json, mode
 
 ---
 
-#### 3. EfficientNet-B4 (Artifact Detection) â€” 75 MB
+#### 3. EfficientNet-B4 (Artifact Detection) — 75 MB
 
 Pre-trained on FaceForensics++ dataset for deepfake artifact detection.
 
@@ -287,7 +287,7 @@ models/efficientnet_b4_faceforensics.pth
 
 ---
 
-#### 4. dlib Face Landmarks â€” 100 MB
+#### 4. dlib Face Landmarks — 100 MB
 
 68-point facial landmark detector for biological signal extraction.
 
@@ -326,7 +326,7 @@ bunzip2 models/shape_predictor_5_face_landmarks.dat.bz2
 
 ---
 
-#### 5. Whisper (Audio/Lip-sync) â€” 461 MB
+#### 5. Whisper (Audio/Lip-sync) — 461 MB
 
 OpenAI's speech recognition for lip-sync verification.
 
@@ -349,7 +349,7 @@ huggingface-cli download openai/whisper-small --local-dir models/whisper-small/
 | base | 74 MB | base.en | base | Fast |
 | small | 461 MB | small.en | small | **Recommended** |
 | medium | 1.5 GB | medium.en | medium | Slow |
-| large-v3 | 2.9 GB | â€” | large-v3 | Slowest |
+| large-v3 | 2.9 GB | — | large-v3 | Slowest |
 
 **Model Details:**
 | Property | Value |
@@ -361,7 +361,7 @@ huggingface-cli download openai/whisper-small --local-dir models/whisper-small/
 
 ---
 
-#### 6. C2PA Library â€” No Model Download Required
+#### 6. C2PA Library — No Model Download Required
 
 Content Credentials verification library. Install via pip:
 
@@ -381,7 +381,7 @@ This is a library, not a model. It verifies cryptographic signatures embedded in
 
 ---
 
-#### 7. CLIP (Optional â€” Similarity Analysis) â€” 350 MB
+#### 7. CLIP (Optional — Similarity Analysis) — 350 MB
 
 OpenAI's vision-language model for additional semantic analysis.
 
@@ -411,14 +411,14 @@ ls -la models/
 **Expected output:**
 ```
 models/
-â”œâ”€â”€ minicpm-v-2.6-Q4_K_M.gguf          (3.2 GB)
-â”œâ”€â”€ aimv2-large/                        (800 MB)
-â”‚   â”œâ”€â”€ config.json
-â”‚   â”œâ”€â”€ model.safetensors
-â”‚   â””â”€â”€ preprocessor_config.json
-â”œâ”€â”€ efficientnet_b4_faceforensics.pth   (75 MB - 1.2 GB)
-â”œâ”€â”€ shape_predictor_68_face_landmarks.dat (100 MB)
-â””â”€â”€ whisper-small/                      (461 MB) [optional, auto-downloads]
+├── minicpm-v-2.6-Q4_K_M.gguf          (3.2 GB)
+├── aimv2-large/                        (800 MB)
+│   ├── config.json
+│   ├── model.safetensors
+│   └── preprocessor_config.json
+├── efficientnet_b4_faceforensics.pth   (75 MB - 1.2 GB)
+├── shape_predictor_68_face_landmarks.dat (100 MB)
+└── whisper-small/                      (461 MB) [optional, auto-downloads]
 ```
 
 **Total Storage Required:** ~6 GB minimum, ~10 GB recommended
@@ -469,23 +469,23 @@ Then open your browser to `http://localhost:7860`
 
 ---
 
-## ðŸ¤– Agentic Architecture Overview
+## 🤖 Agentic Architecture Overview
 
 ### From Pipeline to Agent
 
 **Traditional Pipeline (What We Replaced):**
 ```
-Layer1 â†’ Layer2 â†’ Layer3 â†’ Output
+Layer1 → Layer2 → Layer3 → Output
 (Fixed sequence, always runs everything)
 ```
 
 **Agentic System (What Aegis-X Is Now):**
 ```
 LLM Agent decides:
-  â†’ which check to run
-  â†’ when to stop early
-  â†’ when to escalate
-  â†’ how to explain
+  → which check to run
+  → when to stop early
+  → when to escalate
+  → how to explain
 (Dynamic, evidence-driven)
 ```
 
@@ -493,11 +493,11 @@ LLM Agent decides:
 
 ```mermaid
 flowchart TD
-    subgraph INPUT["ðŸ“¥ INPUT"]
+    subgraph INPUT["📥 INPUT"]
         A[("Video / Image File")]
     end
 
-    subgraph AGENT["ðŸ§  AGENT CORE"]
+    subgraph AGENT["🧠 AGENT CORE"]
         B["Initialize State"]
         C{"Confident?"}
         D["LLM Reasoning"]
@@ -506,7 +506,7 @@ flowchart TD
         G["Update State"]
     end
 
-    subgraph TOOLS["ðŸ”§ TOOL REGISTRY"]
+    subgraph TOOLS["🔧 TOOL REGISTRY"]
         T1["check_c2pa()"]
         T2["run_rppg()"]
         T3["run_entropy()"]
@@ -515,13 +515,13 @@ flowchart TD
         T6["run_dct()"]
     end
 
-    subgraph MEMORY["ðŸ’¾ MEMORY"]
+    subgraph MEMORY["💾 MEMORY"]
         M1["Case History"]
         M2["Pattern Database"]
         M3["Failure Cases"]
     end
 
-    subgraph OUTPUT["ðŸ“Š OUTPUT"]
+    subgraph OUTPUT["📊 OUTPUT"]
         H[("XAI Forensic Report")]
     end
 
@@ -543,17 +543,17 @@ flowchart TD
 ```
 
 **Agent Behavior:**
-1. **Observe** â€” Receive media input and initialize analysis state
-2. **Think** â€” LLM reasons about current evidence and decides next action
-3. **Act** â€” Execute selected forensic tool
-4. **Update** â€” Incorporate tool results into state
-5. **Decide** â€” Check if confidence threshold reached; if not, loop back to Think
+1. **Observe** — Receive media input and initialize analysis state
+2. **Think** — LLM reasons about current evidence and decides next action
+3. **Act** — Execute selected forensic tool
+4. **Update** — Incorporate tool results into state
+5. **Decide** — Check if confidence threshold reached; if not, loop back to Think
 
 ### Tool Registry
 
 ```mermaid
 flowchart LR
-    subgraph REGISTRY["ðŸ”§ FORENSIC TOOL REGISTRY"]
+    subgraph REGISTRY["🔧 FORENSIC TOOL REGISTRY"]
         direction TB
         
         subgraph PROVENANCE["Provenance Tools"]
@@ -582,7 +582,7 @@ flowchart LR
         end
     end
 
-    AGENT["ðŸ§  LLM Agent"] --> REGISTRY
+    AGENT["🧠 LLM Agent"] --> REGISTRY
 
     style REGISTRY fill:#1a1a2e,stroke:#4cc9f0,color:#fff
     style PROVENANCE fill:#00ff88,stroke:#000,color:#000
@@ -594,68 +594,68 @@ flowchart LR
 
 ---
 
-## ðŸ§­ How the Agent Thinks
+## 🧭 How the Agent Thinks
 
 Here is a concrete, narrated walkthrough showing how the agent processes a single video from start to verdict:
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚  AEGIS-X AGENT TRACE â€” suspect_video.mp4                          â”‚
-â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
-â”‚                                                                     â”‚
-â”‚  Step 1 â”‚ OBSERVE   â”‚ Agent receives "suspect_video.mp4"           â”‚
-â”‚         â”‚           â”‚ â†’ Extracts metadata, detects 1 face          â”‚
-â”‚         â”‚           â”‚ â†’ Confidence: 0.50 (prior, no evidence yet)  â”‚
-â”‚                                                                     â”‚
-â”‚  Step 2 â”‚ PLAN      â”‚ Agent checks C2PA provenance first (cheap)   â”‚
-â”‚         â”‚ ACT       â”‚ check_c2pa() â†’ No signature found            â”‚
-â”‚         â”‚ UPDATE    â”‚ â†’ Cannot verify source. Continue analysis.   â”‚
-â”‚         â”‚           â”‚ â†’ Confidence: 0.50 (unchanged)               â”‚
-â”‚                                                                     â”‚
-â”‚  Step 3 â”‚ PLAN      â”‚ "No provenance â€” run biological check"       â”‚
-â”‚         â”‚ ACT       â”‚ run_rppg() â†’ Flatline detected               â”‚
-â”‚         â”‚ UPDATE    â”‚ â†’ BPM: 0, rPPG confidence: 0.1              â”‚
-â”‚         â”‚           â”‚ â†’ Agent confidence: 0.35 (leaning FAKE)      â”‚
-â”‚                                                                     â”‚
-â”‚  Step 4 â”‚ REASON    â”‚ "Low biological signal. This face has no     â”‚
-â”‚         â”‚           â”‚  detectable pulse. Could be a still image    â”‚
-â”‚         â”‚           â”‚  or a generated face. Running entropy."      â”‚
-â”‚         â”‚ ACT       â”‚ run_entropy() â†’ High anomaly in hairline     â”‚
-â”‚         â”‚ UPDATE    â”‚ â†’ Anomaly score: 0.87, hotspot: hair region  â”‚
-â”‚         â”‚           â”‚ â†’ Agent confidence: 0.82 (likely FAKE)       â”‚
-â”‚                                                                     â”‚
-â”‚  Step 5 â”‚ REASON    â”‚ "Entropy anomaly in hairline is consistent   â”‚
-â”‚         â”‚           â”‚  with diffusion model artifacts. One more    â”‚
-â”‚         â”‚           â”‚  check for high confidence."                 â”‚
-â”‚         â”‚ ACT       â”‚ run_artifacts() â†’ GAN fingerprint detected   â”‚
-â”‚         â”‚ UPDATE    â”‚ â†’ Artifact score: 0.91                       â”‚
-â”‚         â”‚           â”‚ â†’ Agent confidence: 0.92 â†’ EARLY STOP        â”‚
-â”‚                                                                     â”‚
-â”‚  Step 6 â”‚ SYNTHESIZEâ”‚ Agent generates final verdict:               â”‚
-â”‚         â”‚           â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”‚
-â”‚         â”‚           â”‚ â”‚ Verdict:    FAKE                        â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚ Confidence: 0.92                        â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚ Reasoning:  "No biological pulse was    â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚  detected (rPPG flatline). Entropy      â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚  analysis found diffusion artifacts in  â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚  the hairline region. Spatial artifact  â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚  detection confirmed GAN fingerprints." â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚ Tools used: [check_c2pa, run_rppg,     â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚  run_entropy, run_artifacts]            â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚ Tools skipped: [run_lipsync,            â”‚  â”‚
-â”‚         â”‚           â”‚ â”‚  run_reflection, run_dct]               â”‚  â”‚
-â”‚         â”‚           â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â”‚
-â”‚         â”‚           â”‚ â†’ 3 tools skipped via early stopping         â”‚
-â”‚         â”‚           â”‚ â†’ 58% compute saved vs fixed pipeline        â”‚
-â”‚                                                                     â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────────────────────────────────────────────────────────┐
+│  AEGIS-X AGENT TRACE — suspect_video.mp4                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Step 1 │ OBSERVE   │ Agent receives "suspect_video.mp4"           │
+│         │           │ → Extracts metadata, detects 1 face          │
+│         │           │ → Confidence: 0.50 (prior, no evidence yet)  │
+│                                                                     │
+│  Step 2 │ PLAN      │ Agent checks C2PA provenance first (cheap)   │
+│         │ ACT       │ check_c2pa() → No signature found            │
+│         │ UPDATE    │ → Cannot verify source. Continue analysis.   │
+│         │           │ → Confidence: 0.50 (unchanged)               │
+│                                                                     │
+│  Step 3 │ PLAN      │ "No provenance — run biological check"       │
+│         │ ACT       │ run_rppg() → Flatline detected               │
+│         │ UPDATE    │ → BPM: 0, rPPG confidence: 0.1              │
+│         │           │ → Agent confidence: 0.35 (leaning FAKE)      │
+│                                                                     │
+│  Step 4 │ REASON    │ "Low biological signal. This face has no     │
+│         │           │  detectable pulse. Could be a still image    │
+│         │           │  or a generated face. Running entropy."      │
+│         │ ACT       │ run_entropy() → High anomaly in hairline     │
+│         │ UPDATE    │ → Anomaly score: 0.87, hotspot: hair region  │
+│         │           │ → Agent confidence: 0.82 (likely FAKE)       │
+│                                                                     │
+│  Step 5 │ REASON    │ "Entropy anomaly in hairline is consistent   │
+│         │           │  with diffusion model artifacts. One more    │
+│         │           │  check for high confidence."                 │
+│         │ ACT       │ run_artifacts() → GAN fingerprint detected   │
+│         │ UPDATE    │ → Artifact score: 0.91                       │
+│         │           │ → Agent confidence: 0.92 → EARLY STOP        │
+│                                                                     │
+│  Step 6 │ SYNTHESIZE│ Agent generates final verdict:               │
+│         │           │ ┌─────────────────────────────────────────┐  │
+│         │           │ │ Verdict:    FAKE                        │  │
+│         │           │ │ Confidence: 0.92                        │  │
+│         │           │ │ Reasoning:  "No biological pulse was    │  │
+│         │           │ │  detected (rPPG flatline). Entropy      │  │
+│         │           │ │  analysis found diffusion artifacts in  │  │
+│         │           │ │  the hairline region. Spatial artifact  │  │
+│         │           │ │  detection confirmed GAN fingerprints." │  │
+│         │           │ │ Tools used: [check_c2pa, run_rppg,     │  │
+│         │           │ │  run_entropy, run_artifacts]            │  │
+│         │           │ │ Tools skipped: [run_lipsync,            │  │
+│         │           │ │  run_reflection, run_dct]               │  │
+│         │           │ └─────────────────────────────────────────┘  │
+│         │           │ → 3 tools skipped via early stopping         │
+│         │           │ → 58% compute saved vs fixed pipeline        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 > **Key insight:** A traditional pipeline would have run all 7 tools. The agent stopped after 4 because confidence exceeded the 0.9 threshold, saving ~58% of compute time.
 
 ---
 
-## ðŸ§  Models & Specifications
+## 🧠 Models & Specifications
 
 ### Complete Model Registry
 
@@ -749,7 +749,7 @@ How models are loaded depends on your available VRAM:
 | VRAM | Strategy | Models in Memory | Behavior |
 |:-----|:---------|:-----------------|:---------|
 | **4 GB** | Sequential | 1 at a time | Each tool loads its model, runs inference, then unloads before the next tool loads. Peak usage ~3.5 GB during LLM inference. |
-| **8 GB** | Hybrid | 2â€“3 concurrent | MiniCPM-V stays resident. GPU tools (AIMv2, EfficientNet, Whisper) share remaining VRAM with lazy loading. CPU tools (dlib, C2PA, scipy) always available. |
+| **8 GB** | Hybrid | 2–3 concurrent | MiniCPM-V stays resident. GPU tools (AIMv2, EfficientNet, Whisper) share remaining VRAM with lazy loading. CPU tools (dlib, C2PA, scipy) always available. |
 | **12+ GB** | Concurrent | All | All models loaded at startup. No load/unload overhead. Enables batch processing. |
 
 **GPU vs CPU model allocation:**
@@ -758,7 +758,7 @@ How models are loaded depends on your available VRAM:
 |:-----------|:-----------|:---------|
 | MiniCPM-V 2.6 (agent brain) | dlib (face landmarks) | Whisper (GPU preferred) |
 | AIMv2-Large (entropy) | C2PA (provenance) | CLIP (GPU preferred) |
-| EfficientNet-B4 (artifacts) | scipy (DCT/rPPG math) | â€” |
+| EfficientNet-B4 (artifacts) | scipy (DCT/rPPG math) | — |
 
 ---
 
@@ -797,7 +797,7 @@ pie showData
 
 ---
 
-## ðŸ§© Core Agent Components
+## 🧩 Core Agent Components
 
 ### The Controller Brain (LLM Agent)
 
@@ -805,12 +805,12 @@ The MiniCPM-V 2.6 model serves as the central reasoning engine with three respon
 
 ```mermaid
 flowchart TB
-    subgraph BRAIN["ðŸ§  LLM CONTROLLER BRAIN"]
+    subgraph BRAIN["🧠 LLM CONTROLLER BRAIN"]
         direction LR
         
-        P["ðŸŽ¯ PLANNER<br/>Which tool next?"]
-        R["ðŸ” REASONER<br/>What does this mean?"]
-        S["ðŸ“ SYNTHESIZER<br/>Final verdict"]
+        P["🎯 PLANNER<br/>Which tool next?"]
+        R["🔍 REASONER<br/>What does this mean?"]
+        S["📝 SYNTHESIZER<br/>Final verdict"]
         
         P --> R --> S
     end
@@ -826,7 +826,7 @@ flowchart TB
 
 | Role | Description | Example |
 |:-----|:------------|:--------|
-| **Planner** | Decides which tool to run next | "rPPG inconclusive â†’ run entropy analysis" |
+| **Planner** | Decides which tool to run next | "rPPG inconclusive → run entropy analysis" |
 | **Reasoner** | Interprets tool outputs | "High entropy in hairline suggests diffusion artifacts" |
 | **Synthesizer** | Generates final explanation | Writes verdict grounded in accumulated evidence |
 
@@ -847,7 +847,7 @@ Rules:
 1. Ground every claim in a specific tool output
 2. If signals conflict, explain the conflict
 3. If confidence < 0.5, recommend human review
-4. Never claim certainty â€” use probabilistic language
+4. Never claim certainty — use probabilistic language
 
 Respond in JSON:
 {{"verdict": "REAL|FAKE|INCONCLUSIVE",
@@ -869,7 +869,7 @@ Respond in JSON:
 | `run_lipsync()` | Phoneme-viseme matching | Whisper + dlib | Video + Audio | `{sync_score}` | GPU |
 | `run_artifacts()` | Spatial artifact detection | EfficientNet-B4 | Face crop | `{artifact_regions, score}` | GPU |
 | `generate_report()` | Compile XAI report | MiniCPM-V 2.6 | Agent state | `{verdict, reasoning}` | GPU |
-| `escalate_to_human()` | Flag for manual review | â€” | Agent state | `{flagged, reason}` | â€” |
+| `escalate_to_human()` | Flag for manual review | — | Agent state | `{flagged, reason}` | — |
 
 #### `run_rppg()` — Remote Photoplethysmography
 
@@ -976,7 +976,7 @@ def check_pulse(frames, fs=30):
                         "hr_stability_std": round(hr_std, 2)}}
 ```
 
-#### `run_entropy()` â€” AIMv2 Entropy Analysis
+#### `run_entropy()` — AIMv2 Entropy Analysis
 
 Uses Apple's autoregressive image model to detect generative artifacts through prediction entropy:
 
@@ -1014,7 +1014,7 @@ The agent maintains persistent memory for experience-based reasoning:
 
 ```mermaid
 flowchart LR
-    subgraph MEMORY["ðŸ’¾ AGENT MEMORY SYSTEM"]
+    subgraph MEMORY["💾 AGENT MEMORY SYSTEM"]
         direction TB
         
         subgraph SHORT["Short-Term (Current Case)"]
@@ -1030,7 +1030,7 @@ flowchart LR
         end
     end
 
-    AGENT["ðŸ§  Agent"] <--> SHORT
+    AGENT["🧠 Agent"] <--> SHORT
     AGENT <--> LONG
     
     L2 -->|"Pattern Match"| AGENT
@@ -1047,39 +1047,39 @@ flowchart LR
 
 ---
 
-## ðŸ”€ Agent Decision Flows
+## 🔀 Agent Decision Flows
 
 ### Dynamic Analysis Paths
 
 ```mermaid
 flowchart TD
-    START(["ðŸŽ¬ Media Input"]) --> C2PA{"check_c2pa()"}
+    START(["🎬 Media Input"]) --> C2PA{"check_c2pa()"}
     
-    C2PA -->|"âœ… Valid Signature"| STOP_VERIFIED["âœ… VERIFIED AT SOURCE<br/>(Skip all analysis)"]
-    C2PA -->|"âŒ No Signature"| RPPG{"run_rppg()"}
+    C2PA -->|"✅ Valid Signature"| STOP_VERIFIED["✅ VERIFIED AT SOURCE<br/>(Skip all analysis)"]
+    C2PA -->|"❌ No Signature"| RPPG{"run_rppg()"}
     
-    RPPG -->|"âœ… BPM: 60-100<br/>Confidence > 0.8"| CHECK_ENOUGH1{"Confidence<br/>Sufficient?"}
-    RPPG -->|"âš ï¸ Inconclusive<br/>Confidence 0.4-0.8"| ENTROPY{"run_entropy()"}
-    RPPG -->|"âŒ Flatline<br/>Confidence < 0.4"| ENTROPY
+    RPPG -->|"✅ BPM: 60-100<br/>Confidence > 0.8"| CHECK_ENOUGH1{"Confidence<br/>Sufficient?"}
+    RPPG -->|"⚠️ Inconclusive<br/>Confidence 0.4-0.8"| ENTROPY{"run_entropy()"}
+    RPPG -->|"❌ Flatline<br/>Confidence < 0.4"| ENTROPY
     
-    CHECK_ENOUGH1 -->|"Yes"| VERDICT_REAL["âœ… LIKELY REAL"]
+    CHECK_ENOUGH1 -->|"Yes"| VERDICT_REAL["✅ LIKELY REAL"]
     CHECK_ENOUGH1 -->|"Need More"| REFLECT{"run_reflection()"}
     
-    ENTROPY -->|"âŒ High Anomaly"| ARTIFACTS{"run_artifacts()"}
-    ENTROPY -->|"âœ… Normal"| CHECK_ENOUGH2{"Confidence<br/>Sufficient?"}
+    ENTROPY -->|"❌ High Anomaly"| ARTIFACTS{"run_artifacts()"}
+    ENTROPY -->|"✅ Normal"| CHECK_ENOUGH2{"Confidence<br/>Sufficient?"}
     
     CHECK_ENOUGH2 -->|"Yes"| VERDICT_REAL
     CHECK_ENOUGH2 -->|"Need More"| LIPSYNC{"run_lipsync()"}
     
-    ARTIFACTS --> FINAL_SYNTH["ðŸ§  Agent Synthesis"]
+    ARTIFACTS --> FINAL_SYNTH["🧠 Agent Synthesis"]
     REFLECT --> FINAL_SYNTH
     LIPSYNC --> FINAL_SYNTH
     
     FINAL_SYNTH --> VERDICT{"Final Verdict"}
     
-    VERDICT -->|"Confidence > 0.9"| FAKE["âŒ FAKE"]
-    VERDICT -->|"Confidence < 0.5"| REAL["âœ… REAL"]
-    VERDICT -->|"0.5 - 0.9"| ESCALATE["âš ï¸ ESCALATE TO HUMAN"]
+    VERDICT -->|"Confidence > 0.9"| FAKE["❌ FAKE"]
+    VERDICT -->|"Confidence < 0.5"| REAL["✅ REAL"]
+    VERDICT -->|"0.5 - 0.9"| ESCALATE["⚠️ ESCALATE TO HUMAN"]
 
     style START fill:#4cc9f0,stroke:#000,color:#000
     style STOP_VERIFIED fill:#00ff88,stroke:#000,color:#000
@@ -1096,7 +1096,7 @@ The agent adapts when standard paths fail:
 
 ```mermaid
 flowchart TD
-    subgraph FALLBACK["ðŸ”„ CONDITIONAL AUTONOMY"]
+    subgraph FALLBACK["🔄 CONDITIONAL AUTONOMY"]
         F1{"Face Detected?"}
         F1 -->|"No"| AUDIO["Switch to Audio Forensics<br/>run_audio_artifacts()"]
         F1 -->|"Yes"| RPPG2["run_rppg()"]
@@ -1116,10 +1116,10 @@ flowchart TD
 ```
 
 **Key Autonomy Rules:**
-- **Face not detected** â†’ Switch to audio-only forensics
-- **rPPG fails** â†’ Try corneal reflection analysis
-- **Both biological checks fail** â†’ Rely on neural analysis + escalate
-- **All checks inconclusive** â†’ Mandatory human review
+- **Face not detected** → Switch to audio-only forensics
+- **rPPG fails** → Try corneal reflection analysis
+- **Both biological checks fail** → Rely on neural analysis + escalate
+- **All checks inconclusive** → Mandatory human review
 
 ### Goal & Reward Heuristics
 
@@ -1135,7 +1135,7 @@ The agent optimizes for **maximum confidence with minimal compute**:
 
 ---
 
-## ðŸ”¬ Technical Deep Dive
+## 🔬 Technical Deep Dive
 
 ### Anti-Compression DCT Analysis
 
@@ -1147,11 +1147,11 @@ Aegis-X operates in the **DCT (Discrete Cosine Transform) frequency domain** rat
 
 **Why DCT survives compression:**
 
-1.  **JPEG uses 8Ã—8 DCT blocks** â€” Every JPEG image is divided into 8Ã—8 pixel blocks, each independently transformed to frequency coefficients. GAN-generated images often fail to reproduce the natural quantization patterns of real camera sensors.
+1.  **JPEG uses 8×8 DCT blocks** — Every JPEG image is divided into 8×8 pixel blocks, each independently transformed to frequency coefficients. GAN-generated images often fail to reproduce the natural quantization patterns of real camera sensors.
 
-2.  **Quantization tables leave fingerprints** â€” When a deepfake is JPEG-compressed, the DCT coefficients are quantized. Re-compressing *again* (by a social media platform) creates a characteristic "double quantization" pattern that Aegis-X detects.
+2.  **Quantization tables leave fingerprints** — When a deepfake is JPEG-compressed, the DCT coefficients are quantized. Re-compressing *again* (by a social media platform) creates a characteristic "double quantization" pattern that Aegis-X detects.
 
-3.  **Grid artifacts persist across compressions** â€” Even after multiple re-compressions, the 8Ã—8 block boundaries create statistical discontinuities that differ between real camera captures and generated imagery.
+3.  **Grid artifacts persist across compressions** — Even after multiple re-compressions, the 8×8 block boundaries create statistical discontinuities that differ between real camera captures and generated imagery.
 
 ```python
 def analyze_dct_artifacts(image_gray):
@@ -1184,7 +1184,7 @@ def analyze_dct_artifacts(image_gray):
 
 **The "Dead Face Problem"**
 
-Every deepfake â€” whether GAN-generated, diffusion-based, or face-swapped â€” shares one fundamental flaw: **the generated face has no biological pulse**. Real human skin exhibits subtle color variations synchronized with the cardiac cycle (blood volume changes). This signal, called **remote photoplethysmography (rPPG)**, is invisible to the naked eye but detectable by computational analysis.
+Every deepfake — whether GAN-generated, diffusion-based, or face-swapped — shares one fundamental flaw: **the generated face has no biological pulse**. Real human skin exhibits subtle color variations synchronized with the cardiac cycle (blood volume changes). This signal, called **remote photoplethysmography (rPPG)**, is invisible to the naked eye but detectable by computational analysis.
 
 **Why this is powerful:**
 - Generative models learn *appearance* but not *physiology*
@@ -1196,17 +1196,17 @@ Every deepfake â€” whether GAN-generated, diffusion-based, or face-swapped 
 
 Aegis-X uses the **chrominance-based (CHROM)** rPPG method, which projects the RGB signal onto a plane orthogonal to specular reflections:
 
-1.  **Extract skin ROI** â€” Using dlib's 68 facial landmarks, isolate the forehead region (landmarks 19â€“24), which has minimal muscle movement and good blood flow visibility
-2.  **Chrominance projection** â€” Project RGB means onto `Xs = 3R - 2G` and `Ys = 1.5R + G - 1.5B` to separate pulse from illumination noise
-3.  **Bandpass filter** â€” Apply 0.7â€“3.5 Hz butterworth filter (42â€“210 BPM cardiac range)
-4.  **Peak detection** â€” Find periodic peaks in the filtered signal to estimate BPM
+1.  **Extract skin ROI** — Using dlib's 68 facial landmarks, isolate the forehead region (landmarks 19–24), which has minimal muscle movement and good blood flow visibility
+2.  **Chrominance projection** — Project RGB means onto `Xs = 3R - 2G` and `Ys = 1.5R + G - 1.5B` to separate pulse from illumination noise
+3.  **Bandpass filter** — Apply 0.7–3.5 Hz butterworth filter (42–210 BPM cardiac range)
+4.  **Peak detection** — Find periodic peaks in the filtered signal to estimate BPM
 
 **Interpretation:**
 | rPPG Result | BPM | Confidence | Agent Interpretation |
 |:------------|:----|:-----------|:---------------------|
-| Strong pulse | 55â€“100 | > 0.8 | Biological signal present â€” likely real face |
-| Weak pulse | Variable | 0.4â€“0.8 | Inconclusive â€” may be poor video quality |
-| Flatline | 0 | < 0.4 | No biological signal â€” high suspicion of fake |
+| Strong pulse | 55–100 | > 0.8 | Biological signal present — likely real face |
+| Weak pulse | Variable | 0.4–0.8 | Inconclusive — may be poor video quality |
+| Flatline | 0 | < 0.4 | No biological signal — high suspicion of fake |
 
 **Real-World Output Examples:**
 
@@ -1282,15 +1282,15 @@ Aegis-X uses the **chrominance-based (CHROM)** rPPG method, which projects the R
 
 **Why 100% Offline Execution Matters**
 
-Aegis-X processes all media **entirely on the user's local machine**. No frames, audio, or metadata are ever transmitted to external servers. This design choice is not just a preference â€” it's a **legal and forensic requirement** for many use cases:
+Aegis-X processes all media **entirely on the user's local machine**. No frames, audio, or metadata are ever transmitted to external servers. This design choice is not just a preference — it's a **legal and forensic requirement** for many use cases:
 
-1. **GDPR Compliance** â€” Under the EU General Data Protection Regulation, biometric data (facial imagery) is a "special category" requiring heightened protection. Sending face data to cloud APIs may violate data minimization principles (Article 5) and require explicit consent for cross-border transfers.
+1. **GDPR Compliance** — Under the EU General Data Protection Regulation, biometric data (facial imagery) is a "special category" requiring heightened protection. Sending face data to cloud APIs may violate data minimization principles (Article 5) and require explicit consent for cross-border transfers.
 
-2. **Chain of Custody** â€” For evidence to be admissible in legal proceedings, the chain of custody must be unbroken. Cloud processing introduces third-party handling that can compromise forensic integrity.
+2. **Chain of Custody** — For evidence to be admissible in legal proceedings, the chain of custody must be unbroken. Cloud processing introduces third-party handling that can compromise forensic integrity.
 
-3. **Journalistic Source Protection** â€” Journalists and researchers analyzing leaked media cannot risk exposing sources by uploading content to third-party APIs.
+3. **Journalistic Source Protection** — Journalists and researchers analyzing leaked media cannot risk exposing sources by uploading content to third-party APIs.
 
-4. **Air-Gapped Environments** â€” Military, intelligence, and corporate investigations often operate in air-gapped networks where cloud access is impossible.
+4. **Air-Gapped Environments** — Military, intelligence, and corporate investigations often operate in air-gapped networks where cloud access is impossible.
 
 **Aegis-X's Offline Architecture:**
 - All 7 forensic models run locally (total ~6 GB)
@@ -1300,7 +1300,7 @@ Aegis-X processes all media **entirely on the user's local machine**. No frames,
 
 ---
 
-## ðŸ API / Programmatic Usage
+## 🐍 API / Programmatic Usage
 
 Aegis-X can be used as a Python library in addition to the CLI:
 
@@ -1336,7 +1336,7 @@ agent = Agent(config=config)
 
 # Analyze with callback for real-time progress
 def on_step(step):
-    print(f"Step {step.number}: {step.tool} â†’ {step.result}")
+    print(f"Step {step.number}: {step.tool} → {step.result}")
 
 result = agent.analyze("suspect.mp4", on_step=on_step)
 
@@ -1372,7 +1372,7 @@ with open("batch_report.json", "w") as f:
 
 ---
 
-## ðŸ“Ÿ CLI Commands Reference
+## 📟 CLI Commands Reference
 
 ### Basic Commands
 
@@ -1440,7 +1440,7 @@ python scripts/update_models.py
 
 ---
 
-## âš™ï¸ Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
 
@@ -1519,7 +1519,7 @@ output:
 
 ---
 
-## ðŸ“Š Performance Benchmarks
+## 📊 Performance Benchmarks
 
 ### Detection Accuracy
 
@@ -1566,91 +1566,91 @@ pie showData
 
 ---
 
-## ðŸ“‚ Project Structure
+## 📂 Project Structure
 
 ```
 aegis-x/
-â”œâ”€â”€ ðŸ“„ main.py                      # CLI entry point
-â”œâ”€â”€ ðŸ“„ app.py                       # Streamlit web interface
-â”œâ”€â”€ ðŸ“„ gradio_app.py                # Gradio web interface
-â”œâ”€â”€ ðŸ“„ requirements.txt             # Python dependencies
-â”œâ”€â”€ ðŸ“„ config.yaml                  # Configuration file
-â”œâ”€â”€ ðŸ“„ .env                         # Environment variables
-â”œâ”€â”€ ðŸ“„ README.md                    # This documentation
-â”‚
-â”œâ”€â”€ ðŸ“ core/                        # Core agent logic
-â”‚   â”œâ”€â”€ ðŸ“„ agent.py                 # Main agent loop
-â”‚   â”œâ”€â”€ ðŸ“„ llm.py                   # LLM controller interface
-â”‚   â”œâ”€â”€ ðŸ“„ memory.py                # Experience memory system
-â”‚   â”‚
-â”‚   â”œâ”€â”€ ðŸ“ tools/                   # Forensic tool implementations
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ __init__.py
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ base.py              # Base tool class
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ registry.py          # Tool registry
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ c2pa_tool.py         # Content credentials
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ rppg_tool.py         # Heartbeat extraction
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ reflection_tool.py   # Corneal reflection
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ entropy_tool.py      # AIMv2 entropy analysis
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ artifacts_tool.py    # EfficientNet artifacts
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ lipsync_tool.py      # Audio-visual sync
-â”‚   â”‚   â””â”€â”€ ðŸ“„ dct_tool.py          # Frequency analysis
-â”‚   â”‚
-â”‚   â””â”€â”€ ðŸ“ prompts/                 # Agent prompt templates
-â”‚       â”œâ”€â”€ ðŸ“„ react.py             # ReAct prompting
-â”‚       â”œâ”€â”€ ðŸ“„ planning.py          # Tool selection prompts
-â”‚       â””â”€â”€ ðŸ“„ synthesis.py         # Verdict generation
-â”‚
-â”œâ”€â”€ ðŸ“ models/                      # Model weights (downloaded)
-â”‚   â”œâ”€â”€ ðŸ“„ minicpm-v-2.6-Q4_K_M.gguf
-â”‚   â”œâ”€â”€ ðŸ“ aimv2-large/
-â”‚   â”œâ”€â”€ ðŸ“„ efficientnet_b4_faceforensics.pth
-â”‚   â”œâ”€â”€ ðŸ“„ shape_predictor_68_face_landmarks.dat
-â”‚   â””â”€â”€ ðŸ“ whisper-small/
-â”‚
-â”œâ”€â”€ ðŸ“ memory/                      # Persistent agent memory
-â”‚   â”œâ”€â”€ ðŸ“„ cases.json               # Historical case records
-â”‚   â””â”€â”€ ðŸ“„ patterns.json            # Artifact pattern database
-â”‚
-â”œâ”€â”€ ðŸ“ utils/                       # Utility functions
-â”‚   â”œâ”€â”€ ðŸ“„ preprocessing.py         # Face detection & alignment
-â”‚   â”œâ”€â”€ ðŸ“„ video.py                 # Video frame extraction
-â”‚   â”œâ”€â”€ ðŸ“„ audio.py                 # Audio extraction
-â”‚   â””â”€â”€ ðŸ“„ visualization.py         # Heatmaps & reporting
-â”‚
-â”œâ”€â”€ ðŸ“ scripts/                     # Helper scripts
-â”‚   â”œâ”€â”€ ðŸ“„ download_models.py       # Model downloader
-â”‚   â”œâ”€â”€ ðŸ“„ check_models.py          # Verify model installation
-â”‚   â””â”€â”€ ðŸ“„ update_models.py         # Update to latest versions
-â”‚
-â”œâ”€â”€ ðŸ“ tests/                       # Unit tests
-â”‚   â”œâ”€â”€ ðŸ“„ test_tools.py
-â”‚   â”œâ”€â”€ ðŸ“„ test_agent.py
-â”‚   â””â”€â”€ ðŸ“„ test_integration.py
-â”‚
-â””â”€â”€ ðŸ“ logs/                        # Runtime logs
-    â””â”€â”€ ðŸ“„ aegis.log
+├── 📄 main.py                      # CLI entry point
+├── 📄 app.py                       # Streamlit web interface
+├── 📄 gradio_app.py                # Gradio web interface
+├── 📄 requirements.txt             # Python dependencies
+├── 📄 config.yaml                  # Configuration file
+├── 📄 .env                         # Environment variables
+├── 📄 README.md                    # This documentation
+│
+├── 📁 core/                        # Core agent logic
+│   ├── 📄 agent.py                 # Main agent loop
+│   ├── 📄 llm.py                   # LLM controller interface
+│   ├── 📄 memory.py                # Experience memory system
+│   │
+│   ├── 📁 tools/                   # Forensic tool implementations
+│   │   ├── 📄 __init__.py
+│   │   ├── 📄 base.py              # Base tool class
+│   │   ├── 📄 registry.py          # Tool registry
+│   │   ├── 📄 c2pa_tool.py         # Content credentials
+│   │   ├── 📄 rppg_tool.py         # Heartbeat extraction
+│   │   ├── 📄 reflection_tool.py   # Corneal reflection
+│   │   ├── 📄 entropy_tool.py      # AIMv2 entropy analysis
+│   │   ├── 📄 artifacts_tool.py    # EfficientNet artifacts
+│   │   ├── 📄 lipsync_tool.py      # Audio-visual sync
+│   │   └── 📄 dct_tool.py          # Frequency analysis
+│   │
+│   └── 📁 prompts/                 # Agent prompt templates
+│       ├── 📄 react.py             # ReAct prompting
+│       ├── 📄 planning.py          # Tool selection prompts
+│       └── 📄 synthesis.py         # Verdict generation
+│
+├── 📁 models/                      # Model weights (downloaded)
+│   ├── 📄 minicpm-v-2.6-Q4_K_M.gguf
+│   ├── 📁 aimv2-large/
+│   ├── 📄 efficientnet_b4_faceforensics.pth
+│   ├── 📄 shape_predictor_68_face_landmarks.dat
+│   └── 📁 whisper-small/
+│
+├── 📁 memory/                      # Persistent agent memory
+│   ├── 📄 cases.json               # Historical case records
+│   └── 📄 patterns.json            # Artifact pattern database
+│
+├── 📁 utils/                       # Utility functions
+│   ├── 📄 preprocessing.py         # Face detection & alignment
+│   ├── 📄 video.py                 # Video frame extraction
+│   ├── 📄 audio.py                 # Audio extraction
+│   └── 📄 visualization.py         # Heatmaps & reporting
+│
+├── 📁 scripts/                     # Helper scripts
+│   ├── 📄 download_models.py       # Model downloader
+│   ├── 📄 check_models.py          # Verify model installation
+│   └── 📄 update_models.py         # Update to latest versions
+│
+├── 📁 tests/                       # Unit tests
+│   ├── 📄 test_tools.py
+│   ├── 📄 test_agent.py
+│   └── 📄 test_integration.py
+│
+└── 📁 logs/                        # Runtime logs
+    └── 📄 aegis.log
 ```
 
 ---
 
-## ðŸ—ºï¸ Roadmap
+## 🗺️ Roadmap
 
 Planned features and enhancements for future releases:
 
-- [ ] ðŸŽ¥ **Real-time video stream analysis** â€” Process live webcam or RTSP streams for continuous monitoring
-- [ ] ðŸŒ **Browser extension** â€” Inline media verification for social media platforms directly in the browser
-- [ ] ðŸ‘¥ **Multi-face tracking** â€” Per-face verdicts when multiple faces appear in a single video
-- [ ] ðŸŽ¯ **Fine-tuning pipeline** â€” Custom training pipeline for new deepfake generators as they emerge
-- [ ] ðŸ”Œ **REST API server mode** â€” HTTP API for integration with external applications and services
-- [ ] ðŸ³ **Docker container** â€” One-command deployment with pre-downloaded models
-- [ ] ðŸ“° **Fact-checking platform integration** â€” Plugins for ClaimBuster, Full Fact, and Google Fact Check Tools
-- [ ] ðŸŒ **Multilingual audio analysis** â€” Extend lip-sync and Whisper to non-English languages
-- [ ] ðŸ“± **Mobile SDK** â€” Lightweight on-device analysis for Android and iOS
-- [ ] ðŸ“Š **Dashboard & analytics** â€” Web-based monitoring dashboard for batch processing results
+- [ ] 🎥 **Real-time video stream analysis** — Process live webcam or RTSP streams for continuous monitoring
+- [ ] 🌐 **Browser extension** — Inline media verification for social media platforms directly in the browser
+- [ ] 👥 **Multi-face tracking** — Per-face verdicts when multiple faces appear in a single video
+- [ ] 🎯 **Fine-tuning pipeline** — Custom training pipeline for new deepfake generators as they emerge
+- [ ] 🔌 **REST API server mode** — HTTP API for integration with external applications and services
+- [ ] 🐳 **Docker container** — One-command deployment with pre-downloaded models
+- [ ] 📰 **Fact-checking platform integration** — Plugins for ClaimBuster, Full Fact, and Google Fact Check Tools
+- [ ] 🌍 **Multilingual audio analysis** — Extend lip-sync and Whisper to non-English languages
+- [ ] 📱 **Mobile SDK** — Lightweight on-device analysis for Android and iOS
+- [ ] 📊 **Dashboard & analytics** — Web-based monitoring dashboard for batch processing results
 
 ---
 
-## ðŸ”§ Troubleshooting
+## 🔧 Troubleshooting
 
 ### Common Issues
 
@@ -1711,7 +1711,7 @@ Download the dlib model using the commands in the Model Downloads section, then 
 
 ---
 
-## ðŸ¤ Contributing
+## 🤝 Contributing
 
 We welcome contributions! Please see our Contributing Guide for details.
 
@@ -1743,7 +1743,7 @@ pytest tests/ -v
 
 ---
 
-## ðŸ“– Citation
+## 📖 Citation
 
 If you use Aegis-X in academic research, please cite:
 
@@ -1759,13 +1759,13 @@ If you use Aegis-X in academic research, please cite:
 
 ---
 
-## ðŸ“œ License
+## 📜 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-## ðŸ™ Acknowledgments
+## 🙏 Acknowledgments
 
 - **OpenBMB** for MiniCPM-V 2.6
 - **Apple** for AIMv2
@@ -1782,10 +1782,10 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 <div align="center">
 
-**Built with ðŸ›¡ï¸ for a more trustworthy digital world**
+**Built with 🛡️ for a more trustworthy digital world**
 
-â€¢ [Issues](https://github.com/gaurav337/aegis-x/issues) â€¢ [Discussions](https://github.com/gaurav337/aegis-x/discussions) â€¢
+• [Issues](https://github.com/gaurav337/aegis-x/issues) • [Discussions](https://github.com/gaurav337/aegis-x/discussions) •
 
-[â¬† Back to Top](#top)
+[⬆ Back to Top](#top)
 
 </div>
