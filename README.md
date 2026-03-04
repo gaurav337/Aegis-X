@@ -24,5 +24,10 @@ Aegis-X is an advanced forensic system utilizing a hybrid AI and physics ensembl
 - Extracts precise, native-resolution anatomical patches (6 key diagnostic regions: left/right periorbital, left/right nasolabial folds, hairline band, chin/jaw contour) targeting 224x224 patch inputs via **Lanczos4** interpolation for frequency artifact preservation.
 - Implemented **Dynamic Quality Snipe Filter** to hunt early video frames and re-evaluate subject bounds to extract the absolute sharpest (highest Laplacian variance) crop minimizing motion blur.
 
+### Day 5: VRAM Lifecycle Management
+- Developed `utils/vram_manager.py` with device auto-detection prioritizing **TPU (XLA)** -> **CUDA** -> **MPS** -> **CPU**.
+- Implemented `VRAMLifecycleManager` context manager with a global acceleration lock and deterministic memory flushing.
+- Enforced a strict **del + .to("cpu") + empty_cache() + gc.collect()** sequence to ensure models are purged from VRAM immediately after use, staying within the system's 600MB peak limit.
+
 ## Running Tests
 Run the daily unit tests using `python tests_files/test_dayX.py`. Or run `pytest` (when integrated) at the repository root.
