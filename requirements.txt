@@ -1,0 +1,15 @@
+mediapipe==0.10.14
+torch
+torchvision
+torchaudio
+torchcodec>=0.9.0
+insightface
+c2pa-python
+scipy
+numpy
+opencv-python
+streamlit
+gradio
+httpx
+pydantic
+python-dotenv
