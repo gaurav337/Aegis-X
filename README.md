@@ -29,5 +29,42 @@ Aegis-X is an advanced forensic system utilizing a hybrid AI and physics ensembl
 - Implemented `VRAMLifecycleManager` context manager with a global acceleration lock and deterministic memory flushing.
 - Enforced a strict **del + .to("cpu") + empty_cache() + gc.collect()** sequence to ensure models are purged from VRAM immediately after use, staying within the system's 600MB peak limit.
 
+## Tooling Implementation (Phase 2)
+
+### Day 6: C2PA Provenance Analysis
+- Integrated `c2pa-python` to verify Content Credentials on media files (`core/tools/c2pa_tool.py`).
+- Implemented robust error handling for missing metadata or libraries, defaulting to a neutral score (0.0 confidence) ensuring pipelines do not crash on unsigned media.
+- Verifies cryptographic signatures and recovers precise timestamps/issuers from the JUMBF claim box.
+
+### Day 7: Multi-ROI POS rPPG Liveness Detection
+- Implemented `core/tools/rppg_tool.py` relying on a Plane Orthogonal to Skin-tone (POS) algorithm windowed over 90+ tracked face spatial frames.
+- Re-anchors tracking via MediaPipe nodes to extract three distinct ROIs (Forehead, Left Cheek, Right Cheek) and integrates a gray-scale variance guardrail to instantly abort ambiguous scans with hair occlusion.
+- Evaluates SNR, cardiac peak bands (0.7-2.5 Hz), and **Spectral Coherence** across the three ROIs to calculate composite signal confidence without exposing integer internal BPM readings.
+- Flags flatlined signals (Score 1.0, NO_PULSE) lacking physiological variation perfectly with synthetic datasets, and flags incoherent localized noise (screen replay spoof).
+
+#### rPPG Spectral Coherence Pipeline
+```text
+Input: Raw video frames + face tracking data
+                    │
+    ┌───────────────┴───────────────┐
+    │   3 ROIs × POS Algorithm      │
+    │   (Forehead, L_Cheek, R_Cheek)│
+    └───────────────┬───────────────┘
+                    │
+    ┌───────────────┴───────────────┐
+    │   4-Stage Decision Pipeline   │
+    │                               │
+    │   0. Flatline → FAKE          │
+    │   1. Quality Gate → ABSTAIN   │
+    │   2. Spectral Concentration   │
+    │   3. Pairwise Coherence       │
+    └───────────────┬───────────────┘
+                    │
+    Output: score (0.0=real, 1.0=fake)
+            confidence (0.0–0.95)
+            human-readable interpretation
+```
+*Compression-robust. No ML model needed. Pure signal processing.*
+
 ## Running Tests
 Run the daily unit tests using `python tests_files/test_dayX.py`. Or run `pytest` (when integrated) at the repository root.
