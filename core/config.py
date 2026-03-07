@@ -10,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from utils.thresholds import (
-    WEIGHT_CLIP, WEIGHT_SBI, WEIGHT_FREQNET, WEIGHT_RPPG,
+    WEIGHT_SIGLIP, WEIGHT_SBI, WEIGHT_FREQNET, WEIGHT_RPPG,
     WEIGHT_DCT, WEIGHT_GEOMETRY, WEIGHT_ILLUMINATION,
     REAL_THRESHOLD, FAKE_THRESHOLD, EARLY_STOP_CONFIDENCE,
     SBI_SKIP_CLIP_THRESHOLD
@@ -38,7 +38,7 @@ class AgentConfig:
 @dataclass
 class EnsembleWeights:
     """Weights for the final ensemble verdict calculation."""
-    clip_adapter: float = WEIGHT_CLIP
+    clip_adapter: float = WEIGHT_SIGLIP
     sbi: float = WEIGHT_SBI
     freqnet: float = WEIGHT_FREQNET
     rppg: float = WEIGHT_RPPG

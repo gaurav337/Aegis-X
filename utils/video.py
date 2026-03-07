@@ -2,8 +2,22 @@
 
 Provides robust, memory-safe functions for extracting video frames using hardware
 acceleration (NVDEC via torchcodec) when available, falling back to OpenCV.
+
+⚙️ HARDWARE THRESHOLDS — Adjust based on your GPU VRAM:
+    - Google Colab T4 (16GB): VRAM_GPU_DECODE_THRESHOLD = 12.0, GPU_DECODE_BATCH_SIZE = 32
+    - Consumer RTX 3060 (12GB): VRAM_GPU_DECODE_THRESHOLD = 10.0, GPU_DECODE_BATCH_SIZE = 16
+    - Consumer RTX 3050 (8GB):  VRAM_GPU_DECODE_THRESHOLD = 6.0,  GPU_DECODE_BATCH_SIZE = 8
+    - Low-End GTX 1650 (4GB):  VRAM_GPU_DECODE_THRESHOLD = 4.0,  GPU_DECODE_BATCH_SIZE = 4
 """
-# on line 53 you can change "cpu" to "cuda" to use GPU acceleration
+
+from utils.thresholds import (
+    VRAM_MODEL_LOAD_THRESHOLD,
+    GPU_DECODE_BATCH_SIZE,
+    CPU_DECODE_BATCH_SIZE,
+    MAX_FRAME_DIMENSION,
+    FALLBACK_FPS
+)
+
 import math
 import cv2
 import numpy as np
@@ -21,6 +35,7 @@ try:
     from torchcodec.decoders import VideoDecoder
     TORCHCODEC_AVAILABLE = True
 except ImportError:
+    torch = None
     pass
 
 # Known valid video extensions
@@ -30,26 +45,50 @@ def is_video_file(path: str) -> bool:
     """Checks if the given file path has a valid video extension."""
     return Path(path).suffix.lower() in VALID_VIDEO_EXTENSIONS
 
+def _get_available_vram_gb() -> float:
+    """Safely detect total VRAM in GB. Returns 0.0 if CUDA unavailable."""
+    if not torch or not torch.cuda.is_available():
+        return 0.0
+    try:
+        props = torch.cuda.get_device_properties(0)
+        return props.total_memory / (1024 ** 3)
+    except Exception:
+        return 0.0
+
 def _calculate_scale(width: int, height: int, max_width: int = 1280) -> Optional[Tuple[int, int]]:
     """Calculates dimensions to downscale a frame preserving aspect ratio."""
-    if width <= max_width:
+    if MAX_FRAME_DIMENSION <= 0 or width <= MAX_FRAME_DIMENSION:
         return None
-    scale = max_width / width
+    scale = MAX_FRAME_DIMENSION / width
     new_width = int(width * scale)
     new_height = int(height * scale)
     return (new_width, new_height)
 
 def extract_frames(video_path: str, max_frames: int = 300, target_fps: int = 30) -> List[np.ndarray]:
-    """Safely extracts a sequence of RGB frames from a video file."""
+    """Safely extracts a sequence of RGB frames from a video file.
+    
+    VRAM SAFETY: Uses VRAM_GPU_DECODE_THRESHOLD to decide GPU vs CPU decoding.
+    """
     if not Path(video_path).exists():
         logger.error(f"Video file not found: {video_path}")
         return []
 
-    # Fast path: TorchCodec GPU Decoding
+    # --- VRAM-Aware Device Selection ---
+    use_gpu_decode = False
+    if TORCHCODEC_AVAILABLE and torch and torch.cuda.is_available():
+        total_vram_gb = _get_available_vram_gb()
+        if total_vram_gb >= VRAM_MODEL_LOAD_THRESHOLD:
+            use_gpu_decode = True
+            logger.info(f"VRAM detected: {total_vram_gb:.1f}GB (threshold: {VRAM_MODEL_LOAD_THRESHOLD}GB). Using GPU decoding (NVDEC).")
+        else:
+            logger.warning(f"VRAM detected: {total_vram_gb:.1f}GB (threshold: {VRAM_MODEL_LOAD_THRESHOLD}GB). Forcing CPU decoding to reserve VRAM for models.")
+    elif TORCHCODEC_AVAILABLE:
+        logger.info("TorchCodec available but CUDA not found. Using CPU decoding.")
+
+    # Fast path: TorchCodec Decoding (GPU or CPU)
     if TORCHCODEC_AVAILABLE:
         try:
-            # Fix: Explicitly assign CUDA device to actually leverage NVDEC
-            device = "cpu" if torch.cuda.is_available() else "gpu"
+            device = "cuda" if use_gpu_decode else "cpu"
             decoder = VideoDecoder(video_path, device=device)
             
             # Fetch metadata with safe null-checks
@@ -78,9 +117,9 @@ def extract_frames(video_path: str, max_frames: int = 300, target_fps: int = 30)
             if not indices:
                 return []
                 
-            # Fix: Batch extraction leveraging NVDEC in chunks to genuinely prevent OOM
+            # Batch extraction
             frames_list = []
-            batch_size = 32 
+            batch_size = GPU_DECODE_BATCH_SIZE if use_gpu_decode else CPU_DECODE_BATCH_SIZE
             
             for i in range(0, len(indices), batch_size):
                 batch_indices = indices[i:i + batch_size]
@@ -88,8 +127,14 @@ def extract_frames(video_path: str, max_frames: int = 300, target_fps: int = 30)
                 # Returns a PyTorch tensor usually shape (N, C, H, W)
                 frames_tensor = decoder.get_frames_at(indices=batch_indices).data
                 
-                # Convert to CPU numpy array
-                frames_np = frames_tensor.cpu().numpy()
+                if use_gpu_decode:
+                    # Explicitly move to CPU and free GPU memory immediately
+                    frames_np = frames_tensor.cpu().numpy()
+                    del frames_tensor
+                    if torch and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                else:
+                    frames_np = frames_tensor.numpy()
                 
                 # Torchcodec defaults to NCHW. Let's strictly permute.
                 if frames_np.ndim == 4 and frames_np.shape[1] == 3:
@@ -98,13 +143,25 @@ def extract_frames(video_path: str, max_frames: int = 300, target_fps: int = 30)
                 for frame in frames_np:
                     h, w, c = frame.shape
                     
-                    # Check for memory limits
+                    # Optional downscaling (disabled by default for forensic accuracy)
                     scale_dims = _calculate_scale(w, h)
                     if scale_dims:
                         frame = cv2.resize(frame, scale_dims, interpolation=cv2.INTER_AREA)
+                        logger.warning(f"Frame downscaled to {scale_dims} — may reduce forensic accuracy.")
+                    
+                    # Enforce uint8 dtype (TorchCodec may return float [0,1])
+                    if frame.dtype != np.uint8:
+                        if frame.max() <= 1.0:
+                            frame = (frame * 255.0)
+                        frame = np.round(frame).clip(0, 255).astype(np.uint8)
                         
                     frames_list.append(frame)
                 
+            # Final cleanup
+            del decoder
+            if use_gpu_decode and torch and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
             return frames_list
         except Exception as e:
             logger.warning(f"TorchCodec extraction failed: {e}. Falling back to OpenCV CPU decode.")
@@ -120,9 +177,9 @@ def _extract_cv2(video_path: str, max_frames: int, target_fps: int) -> List[np.n
         return []
         
     source_fps = cap.get(cv2.CAP_PROP_FPS)
-    # Fix: Added NaN check, as OpenCV routinely returns NaN for corrupted metadata
     if source_fps <= 0 or math.isnan(source_fps):
-         source_fps = 30.0 # Blind fallback
+         source_fps = FALLBACK_FPS
+         logger.warning(f"OpenCV returned invalid FPS ({source_fps}), using fallback {FALLBACK_FPS}")
 
     fps_ratio = source_fps / target_fps
     skip_interval = max(1.0, fps_ratio)
@@ -138,11 +195,18 @@ def _extract_cv2(video_path: str, max_frames: int, target_fps: int) -> List[np.n
             
         if frame_idx >= int(round(current_target)):
             h, w = frame_bgr.shape[:2]
+            
+            # Optional downscaling (disabled by default for forensic accuracy)
             scale_dims = _calculate_scale(w, h)
             if scale_dims:
                 frame_bgr = cv2.resize(frame_bgr, scale_dims, interpolation=cv2.INTER_AREA)
+                logger.warning(f"Frame downscaled to {scale_dims} — may reduce forensic accuracy.")
                 
             frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+            
+            if frame_rgb.dtype != np.uint8:
+                frame_rgb = np.round(frame_rgb).clip(0, 255).astype(np.uint8)
+                
             frames_list.append(frame_rgb)
             current_target += skip_interval
             
@@ -157,10 +221,15 @@ def get_video_duration(path: Path) -> float:
     
     if TORCHCODEC_AVAILABLE:
         try:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            use_gpu = False
+            if torch and torch.cuda.is_available():
+                vram = _get_available_vram_gb()
+                if vram >= VRAM_MODEL_LOAD_THRESHOLD:
+                    use_gpu = True
+            
+            device = "cuda" if use_gpu else "cpu"
             decoder = VideoDecoder(video_path_str, device=device)
             
-            # Fix: Safely fetch the native duration first
             duration = decoder.metadata.duration_seconds
             if duration is not None and duration > 0:
                 return float(duration)
@@ -170,7 +239,7 @@ def get_video_duration(path: Path) -> float:
             if num_frames and fps and float(fps) > 0:
                 return float(int(num_frames) / float(fps))
         except Exception:
-            pass # Fallback to OpenCV
+            pass
             
     # OpenCV Fallback
     cap = cv2.VideoCapture(video_path_str)

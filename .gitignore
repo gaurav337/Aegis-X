@@ -18,3 +18,4 @@ logs/
 *.log
 
 tests_files/
+aegis_x.egg-info/

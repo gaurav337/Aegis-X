@@ -1,9 +1,20 @@
 import time
 import numpy as np
-from typing import Dict, Any, Tuple
+import cv2  # FIX 3: Add cv2 for Laplacian variance check
+from typing import Dict, Any, Tuple, Optional
 
 from core.base_tool import BaseForensicTool
 from core.data_types import ToolResult
+from utils.thresholds import (
+    RPPG_MIN_FRAMES,
+    RPPG_HAIR_OCCLUSION_VARIANCE,
+    RPPG_MIN_TEMPORAL_STD,
+    RPPG_CARDIAC_BAND_MIN_HZ,
+    RPPG_CARDIAC_BAND_MAX_HZ,
+    RPPG_COHERENCE_THRESHOLD_HZ,
+    RPPG_FFT_NFFT,
+    RPPG_SNR_THRESHOLD
+)
 
 
 class RPPGTool(BaseForensicTool):
@@ -37,6 +48,7 @@ class RPPGTool(BaseForensicTool):
         return frame[fy1:fy2, fx1:fx2]
 
     def _get_facial_rois(self, landmarks: np.ndarray) -> Dict[str, tuple]:
+        # FIX 4: Use Spec Section 2.2 forehead landmarks [109, 10, 338, 297, 332, 284, 103, 67]
         rois = {
             "forehead": (0.2, 0.05, 0.8, 0.25),
             "left_cheek": (0.1, 0.5, 0.4, 0.85),
@@ -55,20 +67,33 @@ class RPPGTool(BaseForensicTool):
                         (np.max(pts[:, 0]) - face_min_x) / face_w,
                         (np.max(pts[:, 1]) - face_min_y) / face_h,
                     )
-                rois["forehead"] = _rel(landmarks[[10, 338, 297, 332, 284, 103, 67]])
+                # FIX 4: Added index 109 to forehead polygon
+                rois["forehead"] = _rel(landmarks[[109, 10, 338, 297, 332, 284, 103, 67]])
                 rois["left_cheek"] = _rel(landmarks[[50, 205, 207, 215, 138, 135, 210]])
                 rois["right_cheek"] = _rel(landmarks[[280, 425, 427, 435, 367, 364, 430]])
         return rois
 
+    def _check_hair_occlusion(self, roi: np.ndarray) -> Tuple[bool, float]:
+        """
+        FIX 3: Hair occlusion guardrail per Spec Section 2.2.
+        Returns (is_occluded, variance_score)
+        """
+        if roi.size == 0:
+            return True, 0.0
+        gray_roi = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY) if roi.ndim == 3 else roi
+        variance = float(cv2.Laplacian(gray_roi, cv2.CV_64F).var())
+        # Spec threshold: variance > 35.0 indicates hair texture, not smooth skin
+        return variance > RPPG_HAIR_OCCLUSION_VARIANCE, variance
+
     def _extract_pos_signal(
         self, frames: list, trajectory: dict, relative_roi: tuple
-    ) -> np.ndarray:
+    ) -> Tuple[Optional[np.ndarray], float, bool]:
         """Extracts the 1D POS pulse signal for a specific ROI.
-        Returns (H, temporal_std) or (None, 0.0) on failure.
-        temporal_std = std of raw green channel over time (quality indicator).
+        Returns (H, temporal_std, hair_occluded) or (None, 0.0, False) on failure.
         """
         rgb_means = []
         last_known_box = None
+        hair_occluded = False
 
         for f_idx, frame in enumerate(frames):
             if f_idx in trajectory:
@@ -81,11 +106,16 @@ class RPPGTool(BaseForensicTool):
 
             roi = self._extract_roi(frame, curr_box, relative_roi)
 
-            # Darkness occlusion guard on first valid frame
+            # FIX 3: Hair occlusion check on first valid frame
             if len(rgb_means) == 0 and roi.size > 0:
-                gray_roi = np.mean(roi, axis=2)
+                is_occluded, variance = self._check_hair_occlusion(roi)
+                if is_occluded:
+                    hair_occluded = True
+
+                # Darkness occlusion guard
+                gray_roi = np.mean(roi, axis=2) if roi.ndim == 3 else roi
                 if np.mean(gray_roi) < 50.0:
-                    return None, 0.0
+                    return None, 0.0, False
 
             if roi.size == 0:
                 if rgb_means:
@@ -97,11 +127,9 @@ class RPPGTool(BaseForensicTool):
                 rgb_means.append(spatial_mean)
 
         rgb_matrix = np.array(rgb_means, dtype=np.float64)
-        if len(rgb_matrix) < 90:
-            return None, 0.0
+        if len(rgb_matrix) < RPPG_MIN_FRAMES:
+            return None, 0.0, hair_occluded
 
-        # ── Quality metric: temporal std of green channel ──
-        # This tells us if there's ANY temporal variation to work with
         green_temporal_std = float(np.std(rgb_matrix[:, 1]))
 
         mean_rgb = np.maximum(np.mean(rgb_matrix, axis=0), 1.0)
@@ -114,32 +142,22 @@ class RPPGTool(BaseForensicTool):
         h_mean = np.mean(h)
         h_std = np.std(h) + 1e-7
         H = (h - h_mean) / h_std
-        return np.nan_to_num(H), green_temporal_std
+        return np.nan_to_num(H), green_temporal_std, hair_occluded
 
     def _calculate_signal_metrics(
         self, signal_1d: np.ndarray, fps: float = 30.0
     ) -> Dict[str, float]:
-        """Compute frequency-domain metrics for a single ROI pulse signal.
-        
-        Returns dict with:
-            peak_hz:                 Dominant frequency in cardiac band
-            snr_db:                  Traditional SNR (for logging)
-            spectral_concentration:  Peak power / median power in cardiac band
-                                     (scale-invariant, robust to compression)
-        """
-        # Flatline fast path
         if np.std(signal_1d) < 1e-5:
             return {"peak_hz": 0.0, "snr_db": -100.0, "spectral_concentration": 0.0}
 
         signal_centered = signal_1d.copy() - np.mean(signal_1d)
         windowed = signal_centered * np.hanning(len(signal_centered))
 
-        n_fft = 2048
+        n_fft = RPPG_FFT_NFFT
         psd = np.abs(np.fft.rfft(windowed, n=n_fft)) ** 2
         freqs = np.fft.rfftfreq(n_fft, d=1.0 / fps)
 
-        # Cardiac band: 0.7 – 2.5 Hz (42–150 BPM)
-        band_mask = (freqs >= 0.7) & (freqs <= 2.5)
+        band_mask = (freqs >= RPPG_CARDIAC_BAND_MIN_HZ) & (freqs <= RPPG_CARDIAC_BAND_MAX_HZ)
         band_psd = psd[band_mask]
         band_freqs = freqs[band_mask]
 
@@ -149,16 +167,10 @@ class RPPGTool(BaseForensicTool):
         peak_idx = int(np.argmax(band_psd))
         peak_hz = float(band_freqs[peak_idx])
 
-        # ── Spectral Concentration (key metric) ──
-        # How much does the peak stand out above the median?
-        # Noise → flat → concentration ≈ 1.0
-        # Real pulse → sharp peak → concentration >> 3.0
-        # Robust to overall signal level (compression-invariant)
         median_power = float(np.median(band_psd))
         peak_power = float(band_psd[peak_idx])
         spectral_concentration = peak_power / (median_power + 1e-10)
 
-        # ── Traditional SNR (for logging/debug only) ──
         start_idx = max(0, peak_idx - 2)
         end_idx = min(len(band_psd), peak_idx + 3)
         signal_power = np.sum(band_psd[start_idx:end_idx])
@@ -180,20 +192,23 @@ class RPPGTool(BaseForensicTool):
         h_left: np.ndarray,
         h_right: np.ndarray,
         quality_stds: list,
+        hair_occluded: bool,
     ) -> dict:
-        """Multi-stage liveness evaluation using flatline detection,
-        quality gate, spectral concentration, and pairwise coherence."""
-
         roi_labels = ["Forehead", "L_Cheek", "R_Cheek"]
         signals = [h_forehead, h_left, h_right]
 
-        # ══════════════════════════════════════════
-        #  STAGE 0: FLATLINE DETECTION
-        #  Must come BEFORE quality gate.
-        #  Static/synthetic frames have zero temporal variance
-        #  AND zero spectral content — that's a strong fake signal,
-        #  not a "quality problem".
-        # ══════════════════════════════════════════
+        # FIX 3: Hair occlusion → AMBIGUOUS (not NO_PULSE)
+        if hair_occluded:
+            return {
+                "label": "AMBIGUOUS",
+                "score": 0.0,  # FIX 1: Abstention = 0.0
+                "confidence": 0.0,
+                "interpretation": (
+                    "rPPG abstained: Forehead ROI occluded by hair (texture variance > 35.0). "
+                    "Blood flow signal cannot be reliably extracted from this region."
+                ),
+            }
+
         all_flat = all(np.std(s) < 1e-5 for s in signals)
         if all_flat:
             return {
@@ -207,30 +222,20 @@ class RPPGTool(BaseForensicTool):
                 ),
             }
 
-        # ══════════════════════════════════════════
-        #  STAGE 1: QUALITY GATE
-        #  Is the video analyzable?
-        #  (Only reached if signal is NOT flatline)
-        # ══════════════════════════════════════════
-        MIN_TEMPORAL_STD = 0.3
-        analyzable_count = sum(1 for s in quality_stds if s >= MIN_TEMPORAL_STD)
+        analyzable_count = sum(1 for s in quality_stds if s >= RPPG_MIN_TEMPORAL_STD)
 
         if analyzable_count < 2:
             return {
-                "label": "ABSTAIN",
-                "score": 0.5,
+                "label": "AMBIGUOUS",
+                "score": 0.0,  # FIX 1: Abstention = 0.0
                 "confidence": 0.0,
                 "interpretation": (
                     "rPPG abstained: Video quality too low for biological signal extraction. "
                     f"Temporal color variance ({max(quality_stds):.2f}) is below the minimum "
-                    "threshold needed for pulse detection. Common in heavily compressed video. "
-                    "Tool cannot make a liveness determination."
+                    "threshold needed for pulse detection."
                 ),
             }
 
-        # ══════════════════════════════════════════
-        #  STAGE 2: SPECTRAL ANALYSIS
-        # ══════════════════════════════════════════
         metrics = [self._calculate_signal_metrics(s) for s in signals]
 
         if getattr(self, "_debug", False):
@@ -244,11 +249,9 @@ class RPPGTool(BaseForensicTool):
                     f"green_std={quality_stds[i]:.2f}"
                 )
 
-        SC_USABLE = 3.0
-        good_mask = [m["spectral_concentration"] >= SC_USABLE for m in metrics]
+        good_mask = [m["spectral_concentration"] >= RPPG_SNR_THRESHOLD for m in metrics]
         n_good = sum(good_mask)
 
-        # ── FLATLINE: No ROI has any spectral peak ──
         if n_good == 0:
             max_sc = max(m["spectral_concentration"] for m in metrics)
             if max_sc < 1.5:
@@ -258,45 +261,31 @@ class RPPGTool(BaseForensicTool):
                     "confidence": 0.90,
                     "interpretation": (
                         "Biological liveness failed: No cardiac peak detected in any facial region. "
-                        f"Spectral concentration is flat (max {max_sc:.1f}x), indicating complete "
-                        "absence of blood flow modulation. Consistent with synthetic or static media."
+                        f"Spectral concentration is flat (max {max_sc:.1f}x)."
                     ),
                 }
             else:
                 return {
                     "label": "AMBIGUOUS",
-                    "score": 0.5,
+                    "score": 0.0,  # FIX 1: Abstention = 0.0
                     "confidence": 0.0,
                     "interpretation": (
-                        "rPPG inconclusive: Weak spectral peaks detected but none strong enough "
-                        "for reliable liveness determination."
+                        "rPPG inconclusive: Weak spectral peaks detected but none strong enough."
                     ),
                 }
 
-        # ── INSUFFICIENT: Only 1 usable ROI ──
         if n_good == 1:
             return {
                 "label": "AMBIGUOUS",
-                "score": 0.5,
+                "score": 0.0,  # FIX 1: Abstention = 0.0
                 "confidence": 0.0,
                 "interpretation": (
-                    "rPPG inconclusive: Only one facial region yielded a usable signal. "
-                    "Cannot verify cross-region coherence."
+                    "rPPG inconclusive: Only one facial region yielded a usable signal."
                 ),
             }
 
-        # ══════════════════════════════════════════
-        #  STAGE 3: PAIRWISE COHERENCE
-        #  Instead of requiring ALL good ROIs to agree,
-        #  find the BEST pair that agrees.
-        #  This handles: one noisy ROI with a spurious peak,
-        #  or one ROI corrupted by motion while others are clean.
-        # ══════════════════════════════════════════
-        COHERENCE_THRESHOLD_HZ = 0.15  # ~9 BPM tolerance
-
         good_indices = [i for i, g in enumerate(good_mask) if g]
         good_peaks = [metrics[i]["peak_hz"] for i in good_indices]
-        good_scs = [metrics[i]["spectral_concentration"] for i in good_indices]
 
         best_pair = None
         best_pair_diff = float("inf")
@@ -308,21 +297,15 @@ class RPPGTool(BaseForensicTool):
                     best_pair_diff = diff
                     best_pair = (good_indices[a], good_indices[b])
 
-        if best_pair_diff <= COHERENCE_THRESHOLD_HZ:
-            # Count how many ROIs agree with the coherent pair
+        if best_pair_diff <= RPPG_COHERENCE_THRESHOLD_HZ:
             pair_avg_hz = (metrics[best_pair[0]]["peak_hz"] + metrics[best_pair[1]]["peak_hz"]) / 2
             n_coherent = sum(
                 1 for i in good_indices
-                if abs(metrics[i]["peak_hz"] - pair_avg_hz) <= COHERENCE_THRESHOLD_HZ
+                if abs(metrics[i]["peak_hz"] - pair_avg_hz) <= RPPG_COHERENCE_THRESHOLD_HZ
             )
             avg_bpm = pair_avg_hz * 60
 
-            if n_coherent >= 3:
-                conf = 0.95
-            elif n_coherent == 2:
-                conf = 0.70
-            else:
-                conf = 0.50
+            conf = 0.95 if n_coherent >= 3 else (0.70 if n_coherent == 2 else 0.50)
 
             return {
                 "label": "PULSE_PRESENT",
@@ -330,35 +313,46 @@ class RPPGTool(BaseForensicTool):
                 "confidence": conf,
                 "interpretation": (
                     f"Biological liveness confirmed: Synchronous cardiac pulse detected "
-                    f"across {n_coherent}/3 facial regions at ~{avg_bpm:.0f} BPM "
-                    f"(best pair spread: {best_pair_diff*60:.1f} BPM). "
-                    f"Cross-region coherence verified."
+                    f"across {n_coherent}/3 facial regions at ~{avg_bpm:.0f} BPM."
                 ),
             }
 
-        # ── INCOHERENT: Every pair disagrees ──
         conf = 0.90 if n_good == 3 else 0.65
         return {
             "label": "INCOHERENT",
             "score": 1.0,
             "confidence": conf,
             "interpretation": (
-                "Spoof detected: Pulse frequencies are unsynchronized across all pairs of "
-                f"facial regions (best pair spread: {best_pair_diff*60:.1f} BPM). "
-                "This physical impossibility indicates a screen replay or synthetic face swap."
+                "Spoof detected: Pulse frequencies are unsynchronized across facial regions. "
+                f"Best pair spread: {best_pair_diff*60:.1f} BPM."
             ),
         }
 
     def _run_inference(self, input_data: Dict[str, Any]) -> ToolResult:
         start_time = time.time()
 
+        # FIX 6: Check if this is a static image (rPPG requires video)
+        media_type = input_data.get("original_media_type", "unknown")
+        if media_type == "image":
+            return ToolResult(
+                tool_name=self.tool_name,
+                success=True,
+                score=0.0,  # FIX 1: Abstention = 0.0
+                confidence=0.0,
+                details={"liveness_label": "SKIPPED", "reason": "Static image"},
+                error=False,
+                error_msg=None,
+                execution_time=time.time() - start_time,
+                evidence_summary="rPPG skipped: Static image has no temporal signal.",
+            )
+
         if "frames_30fps" not in input_data or "tracked_faces" not in input_data:
             return ToolResult(
                 tool_name=self.tool_name,
                 success=False,
-                score=0.5,
+                score=0.0,  # FIX 1 & 5: Align with Base class exception handler
                 confidence=0.0,
-                details={},
+                details={"liveness_label": "ERROR"},
                 error=True,
                 error_msg="Missing 'frames_30fps' or 'tracked_faces' in input_data",
                 execution_time=time.time() - start_time,
@@ -368,13 +362,13 @@ class RPPGTool(BaseForensicTool):
         frames = input_data["frames_30fps"]
         tracked_faces = input_data["tracked_faces"]
 
-        if len(frames) < 90:
+        if len(frames) < RPPG_MIN_FRAMES:
             return ToolResult(
                 tool_name=self.tool_name,
                 success=True,
-                score=0.5,
+                score=0.0,  # FIX 1: Abstention = 0.0
                 confidence=0.0,
-                details={},
+                details={"liveness_label": "ABSTAIN", "reason": "Insufficient frames"},
                 error=False,
                 error_msg=None,
                 execution_time=time.time() - start_time,
@@ -391,48 +385,76 @@ class RPPGTool(BaseForensicTool):
             landmarks = face["landmarks"]
             rois = self._get_facial_rois(landmarks)
 
-            # Extract signals + quality metrics for each ROI
-            h_forehead, std_f = self._extract_pos_signal(frames, trajectory, rois["forehead"])
-            h_left, std_l = self._extract_pos_signal(frames, trajectory, rois["left_cheek"])
-            h_right, std_r = self._extract_pos_signal(frames, trajectory, rois["right_cheek"])
+            h_forehead, std_f, hair_f = self._extract_pos_signal(frames, trajectory, rois["forehead"])
+            h_left, std_l, hair_l = self._extract_pos_signal(frames, trajectory, rois["left_cheek"])
+            h_right, std_r, hair_r = self._extract_pos_signal(frames, trajectory, rois["right_cheek"])
 
-            if h_forehead is None or h_left is None or h_right is None:
+            # If forehead is hair-occluded, abstain for this face
+            if hair_f or h_forehead is None or h_left is None or h_right is None:
                 face_results.append(
-                    (0.5, 0.0, "Ambiguous: One or more facial regions occluded or tracking failed.")
+                    {
+                        "score": 0.0,
+                        "confidence": 0.0,
+                        "label": "ABSTAIN",
+                        "interpretation": "One or more facial regions occluded or tracking failed.",
+                        "metrics": {}
+                    }
                 )
                 continue
 
             liveness = self._evaluate_liveness(
                 h_forehead, h_left, h_right,
                 quality_stds=[std_f, std_l, std_r],
+                hair_occluded=hair_f,
             )
+            
+            # FIX 2: Capture metrics for details dict
+            metrics = [self._calculate_signal_metrics(s) for s in [h_forehead, h_left, h_right]]
             face_results.append(
-                (liveness["score"], liveness["confidence"], liveness["interpretation"])
+                {
+                    "score": liveness["score"],
+                    "confidence": liveness["confidence"],
+                    "label": liveness["label"],
+                    "interpretation": liveness["interpretation"],
+                    "metrics": {
+                        "forehead": metrics[0],
+                        "left_cheek": metrics[1],
+                        "right_cheek": metrics[2],
+                    }
+                }
             )
 
         if not face_results:
             return ToolResult(
                 tool_name=self.tool_name,
                 success=True,
-                score=0.5,
+                score=0.0,  # FIX 1: Abstention = 0.0
                 confidence=0.0,
-                details={},
+                details={"liveness_label": "NO_FACES"},
                 error=False,
                 error_msg=None,
                 execution_time=time.time() - start_time,
                 evidence_summary="All tracked faces yielded ambiguous tracking or were occluded.",
             )
 
-        best = sorted(face_results, key=lambda x: x[1], reverse=True)[0]
+        best = sorted(face_results, key=lambda x: x["confidence"], reverse=True)[0]
+
+        # FIX 2: Populate details with ensemble routing data
+        details = {
+            "liveness_label": best["label"],  # ← Ensemble reads this for routing
+            "peak_hz": best["metrics"].get("forehead", {}).get("peak_hz", 0.0),
+            "spectral_concentration": best["metrics"].get("forehead", {}).get("spectral_concentration", 0.0),
+            "faces_analyzed": len(face_results),
+        }
 
         return ToolResult(
             tool_name=self.tool_name,
             success=True,
-            score=best[0],
-            confidence=best[1],
-            details={},
+            score=best["score"],
+            confidence=best["confidence"],
+            details=details,  # FIX 2: Structured data for ensemble
             error=False,
             error_msg=None,
             execution_time=time.time() - start_time,
-            evidence_summary=best[2],
+            evidence_summary=best["interpretation"],
         )

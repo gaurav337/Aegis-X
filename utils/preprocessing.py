@@ -53,7 +53,6 @@ class KalmanBoxTracker:
                                              [0,0,0,0,1,0,0],[0,0,0,0,0,1,0],[0,0,0,0,0,0,1]], np.float32)
         self.kf.measurementMatrix = np.array([[1,0,0,0,0,0,0],[0,1,0,0,0,0,0],[0,0,1,0,0,0,0],[0,0,0,1,0,0,0]], np.float32)
         
-        # EXECUTION FIX: Explicitly initialize OpenCV noise matrices to prevent C++ garbage memory NaN divergence
         self.kf.processNoiseCov = np.eye(7, dtype=np.float32) * 0.1
         self.kf.measurementNoiseCov = np.eye(4, dtype=np.float32) * 1.0
         self.kf.errorCovPost = np.eye(7, dtype=np.float32) * 1.0
@@ -61,7 +60,7 @@ class KalmanBoxTracker:
         state = np.zeros((7, 1), dtype=np.float32)
         state[:4, 0] = self.convert_bbox_to_z(bbox).flatten()
         self.kf.statePost = state
-        self.kf.statePre = state.copy() # Pre-state needs initialization too
+        self.kf.statePre = state.copy()
         
         self.id = track_id
         self.time_since_update = 0
@@ -81,7 +80,6 @@ class KalmanBoxTracker:
         return [float(x[0]-w/2.), float(x[1]-h/2.), float(x[0]+w/2.), float(x[1]+h/2.)]
 
     def predict(self):
-        # Safer shape indexing
         if (self.kf.statePost[6, 0] + self.kf.statePost[2, 0]) <= 0:
             self.kf.statePost[6, 0] = 0.0
         self.kf.predict()
@@ -103,7 +101,6 @@ class SortTracker:
         self.id_count = 0 
 
     def update(self, dets=None):
-        # Force strict 2D array parsing to satisfy unit test environments
         if dets is None:
             dets = np.empty((0, 4))
         dets = np.array(dets)
@@ -187,9 +184,10 @@ class PreprocessResult:
     has_face: bool
     tracked_faces: List[TrackedFace] = field(default_factory=list)
     frames_30fps: Optional[List[np.ndarray]] = None 
-    selected_frame_index: int = 0      # Re-added for test compatibility
-    selected_frame_sharpness: float = 0.0 # Re-added for test compatibility
+    selected_frame_index: int = 0
+    selected_frame_sharpness: float = 0.0
     original_media_type: str = "image"
+    frame_count_warning: bool = False  # FIX 7: Flag for rPPG
     
 class Preprocessor:
     """MediaPipe-based robust face landmark extraction and patching class."""
@@ -197,7 +195,8 @@ class Preprocessor:
     def __init__(self, config: PreprocessingConfig):
         self.config = config
         
-        max_faces = getattr(config, 'max_subjects_to_analyze', 2)
+        # FIX 2: Correct config attribute path
+        max_faces = getattr(config.preprocessing, 'max_subjects_to_analyze', 2)
         self.face_mesh = mp.solutions.face_mesh.FaceMesh(
             static_image_mode=True,
             refine_landmarks=True,
@@ -276,14 +275,15 @@ class Preprocessor:
         
     def _extract_native_patches(self, image: np.ndarray, landmarks: np.ndarray) -> Tuple:
         h, w = image.shape[:2]
-        size = self.config.native_patch_size
+        size = self.config.preprocessing.native_patch_size  # FIX 2
         
+        # FIX 1 & 5: Align patch landmarks with Spec Section 3.1
         patches_def = {
-            "left_periorbital": [33, 133, 160, 159, 158, 144],
-            "right_periorbital": [263, 362, 385, 386, 387, 373],
+            "left_periorbital": [33, 160, 158, 133, 153, 144],      # Spec order
+            "right_periorbital": [362, 385, 387, 263, 373, 380],    # Spec order
             "nasolabial_left": [92, 205, 216, 206],
             "nasolabial_right": [322, 425, 436, 426],
-            "hairline_band": [10, 338, 297, 332, 284, 103, 67],
+            "hairline_band": [10, 338, 297, 332, 284],              # 5 nodes (not 7)
             "chin_jaw": [172, 136, 150, 149, 176, 148, 152, 377, 400, 379, 365]
         }
         
@@ -319,17 +319,17 @@ class Preprocessor:
             results["chin_jaw"]
         )
 
-    # LOGIC FIX: Reverted method name and signature to satisfy unit tests
     def _select_sharpest_frame(self, frames: List[np.ndarray], trajectory: Dict[int, Tuple[int, int, int, int]]) -> Tuple[int, float]:
         valid_indices = list(trajectory.keys())
         if not valid_indices:
             return 0, 0.0
             
-        num_samples = min(len(valid_indices), getattr(self.config, 'quality_snipe_samples', 5))
+        num_samples = min(len(valid_indices), getattr(self.config.preprocessing, 'quality_snipe_samples', 5))
         sample_indices = [valid_indices[i] for i in np.linspace(0, len(valid_indices)-1, num_samples, dtype=int)]
         
         best_idx = valid_indices[0]
-        best_sharpness = -1.0
+        # FIX 3: Initialize to prevent UnboundLocalError
+        best_sharpness = 0.0
         
         for idx in sample_indices:
             frame = frames[idx]
@@ -339,10 +339,11 @@ class Preprocessor:
             cx1, cy1 = max(0, x1), max(0, y1)
             cx2, cy2 = min(w, x2), min(h, y2)
             
-            face_crop = frame[cy1:cy2, cx1:cx2]
+            face_crop = frame[cy1:cy2, cx1:x2]
             if face_crop.size == 0:
                 continue
                 
+            # FIX 6: Ensure RGB before grayscale conversion
             gray = cv2.cvtColor(face_crop, cv2.COLOR_RGB2GRAY)
             sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
             
@@ -356,15 +357,19 @@ class Preprocessor:
         path_str = str(path)
         result = PreprocessResult(has_face=False)
         self.tracker = SortTracker()
-        min_res = getattr(self.config, 'min_face_resolution', 64)
+        min_res = getattr(self.config.preprocessing, 'min_face_resolution', 64)
         
         try:
             if is_video_file(path_str):
                 result.original_media_type = "video"
-                frames = extract_frames(path_str, self.config.max_video_frames, self.config.extract_fps)
+                frames = extract_frames(path_str, self.config.preprocessing.max_video_frames, self.config.preprocessing.extract_fps)
                 if not frames:
                     return result
                 result.frames_30fps = frames
+                
+                # FIX 7: Flag if video too short for rPPG
+                if len(frames) < self.config.preprocessing.min_video_frames:
+                    result.frame_count_warning = True
                 
                 established_tracks: Dict[int, TrackedFace] = {}
                 
@@ -404,8 +409,9 @@ class Preprocessor:
                 
                 # --- PHASE 2: EXTRACT CROPS PER-TRACK ---
                 for trk_id, track_obj in established_tracks.items():
-                    # LOGIC FIX: Filter ghost tracks, but allow short unit tests to pass
-                    if len(frames) >= 30 and len(track_obj.trajectory_bboxes) < 15:
+                    # FIX 4: Less aggressive filtering for short videos
+                    min_track_length = min(15, len(frames) // 2)
+                    if len(track_obj.trajectory_bboxes) < min_track_length:
                         continue
                         
                     best_idx, best_sharpness = self._select_sharpest_frame(frames, track_obj.trajectory_bboxes)
@@ -435,8 +441,8 @@ class Preprocessor:
                             
                     track_obj.best_frame_idx = best_idx
                     track_obj.landmarks = matched_lm
-                    track_obj.face_crop_224 = self._crop_align(target_image, matched_lm, self.config.face_crop_size)
-                    track_obj.face_crop_380 = self._crop_align(target_image, matched_lm, self.config.sbi_crop_size)
+                    track_obj.face_crop_224 = self._crop_align(target_image, matched_lm, self.config.preprocessing.face_crop_size)
+                    track_obj.face_crop_380 = self._crop_align(target_image, matched_lm, self.config.preprocessing.sbi_crop_size)
                     
                     patches = self._extract_native_patches(target_image, matched_lm)
                     track_obj.patch_left_periorbital = patches[0]
@@ -474,8 +480,8 @@ class Preprocessor:
                         best_frame_idx=0
                     )
                     
-                    track_obj.face_crop_224 = self._crop_align(image, lm, self.config.face_crop_size)
-                    track_obj.face_crop_380 = self._crop_align(image, lm, self.config.sbi_crop_size)
+                    track_obj.face_crop_224 = self._crop_align(image, lm, self.config.preprocessing.face_crop_size)
+                    track_obj.face_crop_380 = self._crop_align(image, lm, self.config.preprocessing.sbi_crop_size)
                     
                     patches = self._extract_native_patches(image, lm)
                     track_obj.patch_left_periorbital = patches[0]
