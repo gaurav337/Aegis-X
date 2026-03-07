@@ -8,6 +8,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from dotenv import load_dotenv
+from typing import Optional  
 
 from utils.thresholds import (
     WEIGHT_SIGLIP, WEIGHT_SBI, WEIGHT_FREQNET, WEIGHT_RPPG,
@@ -31,9 +32,21 @@ class ModelPaths:
 @dataclass
 class AgentConfig:
     """Configuration for the local LLM agent and orchestration."""
-    max_retries: int = int(os.getenv("AGENT_MAX_RETRIES", "3"))
+    max_retries: int = int(os.getenv("AGENT_MAX_RETRIES", "2"))
     llm_timeout: int = int(os.getenv("AGENT_LLM_TIMEOUT", "120"))
     ollama_endpoint: str = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+    
+    # === OLLAMA SPECIFIC ===
+    ollama_model_name: str = os.getenv("OLLAMA_MODEL", "phi3:mini")
+    ollama_timeout: int = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+    # C1: Omit for Ollama default (5min) - best for batch scanning
+    ollama_keep_alive: Optional[int] = None
+    
+    # === GENERATION SETTINGS ===
+    llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.1"))
+    llm_seed: int = int(os.getenv("LLM_SEED", "42"))
+    llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+    llm_context_window: int = int(os.getenv("LLM_CONTEXT_WINDOW", "4096"))
 
 @dataclass
 class EnsembleWeights:
