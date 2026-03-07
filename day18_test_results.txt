@@ -1,0 +1,107 @@
+============================================================
+🚀 Aegis-X Day 18: Ollama Client Test Suite (v7.1)
+============================================================
+Requirements:
+  - Ollama running: ollama serve
+  - Model pulled: ollama pull phi3:mini
+============================================================
+
+============================================================
+🧪 T1: Health Check (Endpoint + Model)
+============================================================
+✅ PASS: Ollama is reachable AND phi3:mini exists
+
+============================================================
+🧪 T2: Plain Text Generation
+============================================================
+✅ PASS: Plain text generated: 'Protective Shield...'
+
+============================================================
+🧪 T3: JSON Generation (format:json)
+============================================================
+✅ PASS: Valid JSON generated: ['verdict', 'confidence', 'reasoning']
+
+============================================================
+🧪 T4: Fallback Response Structure
+============================================================
+   ✅ Has 'verdict' key
+   ✅ Has 'confidence' key
+   ✅ Has 'reasoning' key
+   ✅ Verdict is INCONCLUSIVE
+   ✅ Confidence is 0.0 (not 0.5)
+   ✅ _exclude_from_ensemble flag set
+   ✅ Actual attempts in message
+✅ PASS: Fallback structure valid
+
+============================================================
+🧪 T5: Stream Callback (Sync Function)
+============================================================
+✅ PASS: Received 8 tokens via sync callback
+
+============================================================
+🧪 T6: Stream Callback (Async Function)
+============================================================
+✅ PASS: Received 7 tokens via async callback
+
+============================================================
+🧪 T7: Non-Streaming Mode
+============================================================
+✅ PASS: Non-streaming response in 0.14s: 'Hello...'
+
+============================================================
+🧪 T8: Concurrent Calls (Semaphore Serialization)
+============================================================
+   Successes: 3/3
+   Min gap between starts: 0.000s
+   Serialization detected: False
+✅ PASS: 3/3 concurrent calls succeeded
+
+============================================================
+🧪 T9: Metrics Tracking
+============================================================
+   Metrics keys present: 9/9
+   Total calls: 3
+   JSON success: 1
+   Text success: 2
+   Avg time: 0.17s
+✅ PASS: All required metrics present
+
+============================================================
+🧪 T10: Connection Error Handling
+============================================================
+✅ PASS: Connection error returns fallback JSON
+
+============================================================
+🧪 T11: Retry Seed Variation
+============================================================
+   Seeds for 3 attempts: [42, 1042, 2042]
+   Unique seeds: 3/3
+✅ PASS: Each retry has unique seed
+
+============================================================
+🧪 T12: Stop Tokens Configuration
+============================================================
+   Configured stop tokens: ['<|eot_id|>', '</s>', '<|end_of_text|>', '<|end|>', '<|user|>']
+   Phi-3 tokens present: ['<|end|>', '<|user|>']
+✅ PASS: All Phi-3 stop tokens present (2/2)
+
+============================================================
+📊 Test Summary
+============================================================
+✅ PASS | T1: Health Check
+✅ PASS | T2: Plain Text Generation
+✅ PASS | T3: JSON Generation
+✅ PASS | T4: Fallback Response
+✅ PASS | T5: Stream Callback (Sync)
+✅ PASS | T6: Stream Callback (Async)
+✅ PASS | T7: Non-Streaming Mode
+✅ PASS | T8: Concurrent Calls
+✅ PASS | T9: Metrics Tracking
+✅ PASS | T10: Connection Error
+✅ PASS | T11: Retry Seed Variation
+✅ PASS | T12: Stop Tokens
+
+============================================================
+Total: 12 passed, 0 skipped, 0 failed
+============================================================
+🎉 ALL TESTS PASSED - Module ready for production!
