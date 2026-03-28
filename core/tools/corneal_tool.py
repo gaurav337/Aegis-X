@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 from typing import Any, Dict, List, Tuple, Optional
 
-from core.base_tool import BaseForensicTool
+from core.base_tool  import BaseForensicTool
 from core.data_types import ToolResult
 from utils.thresholds import (
     CORNEAL_BOX_SIZE,
@@ -332,7 +332,7 @@ class CornealTool(BaseForensicTool):
             # --- Calculate Confidence ---
             # Higher catchlight strength = more confident in centroid detection
             avg_strength = (left_strength + right_strength) / 2
-            confidence = min(0.9, 0.7 + (avg_strength * 0.2))
+            confidence = min(0.9, 0.5 + (avg_strength * 0.4))
 
             # --- Build Interpretation ---
             if consistent:
