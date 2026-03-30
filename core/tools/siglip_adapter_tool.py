@@ -16,8 +16,9 @@ Constraints:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import SiglipModel
 from torchvision import transforms
+from transformers import SiglipModel
+
 from PIL import Image
 import gc
 from typing import List, Dict, Any

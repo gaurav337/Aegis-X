@@ -34,9 +34,11 @@ try:
     import torch
     from torchcodec.decoders import VideoDecoder
     TORCHCODEC_AVAILABLE = True
-except ImportError:
-    torch = None
-    pass
+except Exception as e:
+    logger.warning(f"Failed to load torchcodec: {e}. Falling back to OpenCV CPU decode.")
+    # torch might still be available even if torchcodec fails
+    import torch
+    TORCHCODEC_AVAILABLE = False
 
 # Known valid video extensions
 VALID_VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv"}

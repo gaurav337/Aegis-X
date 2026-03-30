@@ -18,7 +18,7 @@ TOOL_SPECS = [
     ("core.tools.geometry_tool",    "GeometryTool"),
     ("core.tools.illumination_tool","IlluminationTool"),
     ("core.tools.corneal_tool",     "CornealTool"),
-    ("core.tools.clip_adapter_tool","ClipAdapterTool"),
+    ("core.tools.siglip_adapter_tool","SiglipForensicAdapter"),
     ("core.tools.sbi_tool",        "SBITool"),
     ("core.tools.freqnet_tool",    "FreqNetTool"),
 ]
@@ -44,7 +44,7 @@ for module_path, class_name in TOOL_SPECS:
         
         if not has_setup:
             print(f"   ⚠️  Missing setup() method")
-        if not has_gpu_attr and tool_name in ['run_clip_adapter', 'run_sbi', 'run_freqnet']:
+        if not has_gpu_attr and tool_name in ['run_siglip_adapter', 'run_sbi', 'run_freqnet']:
             print(f"   ⚠️  Missing requires_gpu attribute")
             
     except Exception as e:

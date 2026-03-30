@@ -22,6 +22,8 @@ ENABLE_TPU_SUPPORT = False          # FIX: Missing constant for tools
 TPU_MEMORY_FRACTION = 0.8           # FIX: Missing constant for SigLIP/SBI/FreqNet
 GPU_MEMORY_FRACTION = 0.9
 MAX_BATCH_SIZE = 64
+MAX_FRAME_DIMENSION = 0             # 0 = disabled (preserve native res)
+FALLBACK_FPS = 30.0                 # Fallback FPS for OpenCV
 
 # =============================================================================
 # ENSEMBLE WEIGHTS (Day 15)
