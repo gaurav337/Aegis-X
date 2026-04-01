@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis-X | Deepfake Forensics</title>
+    <!-- Modern Typeface -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-globes">
+        <div class="globe globe-1"></div>
+        <div class="globe globe-2"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="icon">🛡️</span>
+                <h1>Aegis-X</h1>
+            </div>
+            <p>Advanced Deepfake Forensics & Detection Pipeline</p>
+        </header>
+
+        <main>
+            <div class="upload-section" id="upload-zone">
+                <div class="upload-content">
+                    <div class="upload-icon">📁</div>
+                    <h3>Drag & Drop media here</h3>
+                    <p>or click to browse native image</p>
+                    <input type="file" id="file-input" accept="image/jpeg, image/png, image/webp" hidden>
+                </div>
+                <div class="preview-container" id="preview-container" style="display: none;">
+                    <img id="image-preview" src="" alt="Preview">
+                    <button class="btn analyze-btn" id="analyze-btn">Analyze Media</button>
+                    <button class="btn remove-btn" id="remove-btn" style="background: transparent; box-shadow: none; border: 1px solid var(--text-secondary); margin-top: 10px;">Remove Image</button>
+                </div>
+            </div>
+
+            <div class="loader-section hidden" id="loader">
+                <div class="spinner"></div>
+                <p>Running Forensic Pipeline...</p>
+                <div class="progress-steps" id="progress-steps">
+                    <span class="step active">Preprocessing Face</span>
+                    <span class="step">Extracting Features</span>
+                    <span class="step">Computing Confidence</span>
+                </div>
+            </div>
+
+            <div class="results-section hidden" id="results-zone">
+                <div class="verdict-banner" id="final-verdict-banner">
+                    <h2 id="final-verdict">Loading...</h2>
+                    <p>Confidence Composite: <span class="score-pill" id="final-score">--</span></p>
+                    <p style="margin-top: 5px; font-size: 0.9rem; color: var(--text-secondary)">Faces Detected: <span id="faces-detected"></span></p>
+                </div>
+
+                <div class="explanation-box" id="explanation-box" style="margin-bottom: 30px; padding: 20px; border-radius: 12px; background: linear-gradient(145deg, rgba(20,25,35,0.6), rgba(15,20,25,0.8)); border-left: 4px solid var(--primary-color); display: none; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+                    <h3 style="margin-bottom: 12px; font-size: 1.2rem; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.4rem;">🤖</span> Agent Synthesis
+                    </h3>
+                    <p id="explanation-text" style="color: #cbd5e1; white-space: pre-wrap; line-height: 1.6; font-size: 1.05rem; font-weight: 300; letter-spacing: 0.3px;"></p>
+                </div>
+
+                <div class="tools-grid" id="tools-grid">
+                    <!-- Tool result cards injected via script.js -->
+                </div>
+                <button class="btn restart-btn" id="restart-btn">Analyze Another Image</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
