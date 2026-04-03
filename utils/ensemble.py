@@ -54,6 +54,12 @@ from utils.thresholds import (
     CONFLICT_STD_THRESHOLD,
     SUSPICION_OVERRIDE_THRESHOLD,
     
+    # Borderline consensus & GPU coverage
+    BORDERLINE_CONSENSUS_LOW,
+    BORDERLINE_CONSENSUS_HIGH,
+    BORDERLINE_CONSENSUS_BOOST,
+    GPU_COVERAGE_DEGRADATION_FACTOR,
+    
     # EMA smoothing (2026 Edge Standard)
     EMA_SMOOTHING_ALPHA,
     EMA_SMOOTHING_ENABLED,
@@ -345,23 +351,90 @@ def calculate_ensemble_score(
     # Base weighted average combines both GPU specialists and CPU supporters
     base_ensemble = total_contribution / total_weight
     
-    # Suspicion Overdrive (Feature-Isolation Logic)
-    # Applied ONLY to true GPU specialists. CPU tools (Corneal, Geometry) act as 
-    # supporters and cannot single-handedly force a max-pool override.
-    max_prob = max(gpu_specialist_probs) if gpu_specialist_probs else 0.0
+    # ── PRONG 1: Suspicion Overdrive (Hard Max-Pool) ──
+    max_gpu_prob = max(gpu_specialist_probs) if gpu_specialist_probs else 0.0
+    highest_suspicion = max(implied_probs) if implied_probs else 0.0
     
-    # Debug logging to trace exactly what's happening
-    logger.debug("Ensemble trace: implied_probs=%s, max_prob=%.4f, base_ensemble=%.4f", 
-                 implied_probs, max_prob, base_ensemble)
+    # Debug logging
+    logger.debug("Ensemble trace: implied_probs=%s, max_gpu_prob=%.4f, highest_suspicion=%.4f, base_ensemble=%.4f", 
+                 implied_probs, max_gpu_prob, highest_suspicion, base_ensemble)
     logger.debug("Ensemble trace: tools_ran=%s, abstentions=%s", tools_ran, [a['tool_name'] for a in abstentions])
     
-    if max_prob > SUSPICION_OVERRIDE_THRESHOLD:
-        # Hard max-pooling: if any tool flags suspicion > threshold, the ensemble mirrors it.
-        # This completely prevents dilution of orthogonal deepfake signatures.
-        fake_score = round(max_prob, 4)
-        logger.info("Suspicion Overdrive FIRED: max_prob=%.4f > threshold=%.2f, using max-pool", max_prob, SUSPICION_OVERRIDE_THRESHOLD)
+    if max_gpu_prob > SUSPICION_OVERRIDE_THRESHOLD:
+        # Check for internal GPU conflict before hard max-pooling.
+        # If the spread between the most and least suspicious GPU specialist
+        # is large, they contradict each other and we can't trust a single detector.
+        min_gpu_prob = min(gpu_specialist_probs) if gpu_specialist_probs else 0.0
+        gpu_spread = max_gpu_prob - min_gpu_prob
+        if gpu_spread > 0.30 and len(gpu_specialist_probs) >= 2:
+            # GPU specialists contradict each other — fall back to weighted average
+            fake_score = round(max(0.0, min(1.0, base_ensemble)), 4)
+            logger.info("Suspicion Overdrive BLOCKED by GPU conflict: spread=%.4f (%.2f to %.2f). Using base_ensemble=%.4f",
+                       gpu_spread, min_gpu_prob, max_gpu_prob, base_ensemble)
+        else:
+            # Hard max-pooling for unanimous GPU certainty
+            fake_score = round(max_gpu_prob, 4)
+            logger.info("Suspicion Overdrive FIRED: max_gpu_prob=%.4f > threshold=%.2f", max_gpu_prob, SUSPICION_OVERRIDE_THRESHOLD)
     else:
-        fake_score = round(max(0.0, min(1.0, base_ensemble)), 4)
+        # ── PRONG 2: Borderline Consensus Detection ──
+        # When ≥2 GPU specialists independently cluster near 50% (borderline zone),
+        # their joint uncertainty is itself a corroborating signal of manipulation.
+        # A single tool at 49% is a coin-flip; TWO tools at ~47% is a pattern.
+        borderline_gpu_probs = [
+            p for p in gpu_specialist_probs 
+            if BORDERLINE_CONSENSUS_LOW <= p <= BORDERLINE_CONSENSUS_HIGH
+        ]
+        
+        consensus_anchor = 0.0
+        if len(borderline_gpu_probs) >= 2:
+            consensus_mean = sum(borderline_gpu_probs) / len(borderline_gpu_probs)
+            consensus_anchor = min(1.0, consensus_mean * BORDERLINE_CONSENSUS_BOOST)
+            logger.info("Borderline Consensus FIRED: %d GPU specialists in [%.2f, %.2f] zone, "
+                       "mean=%.4f, boosted=%.4f",
+                       len(borderline_gpu_probs), BORDERLINE_CONSENSUS_LOW, 
+                       BORDERLINE_CONSENSUS_HIGH, consensus_mean, consensus_anchor)
+        
+        # ── PRONG 3: GPU Coverage Degradation ──
+        # When GPU specialists blind-spot out, the system has less evidence.
+        # It should NOT confidently declare REAL on thin evidence.
+        gpu_abstained = [a for a in abstentions if a["tool_name"] in GPU_SPECIALISTS]
+        total_gpu_expected = len(GPU_SPECIALISTS)
+        gpu_degradation_boost = 1.0
+        if len(gpu_abstained) > 0:
+            gpu_degradation_boost = 1.0 + (GPU_COVERAGE_DEGRADATION_FACTOR * len(gpu_abstained))
+            logger.info("GPU Coverage Degradation: %d/%d specialists abstained, boost=%.2f",
+                       len(gpu_abstained), total_gpu_expected, gpu_degradation_boost)
+        
+        # Anomaly anchor uses ONLY GPU specialist scores.
+        # CPU tools (corneal, geometry, DCT) are noisy supporters — they participate
+        # via the base weighted average but cannot unilaterally anchor the score.
+        anomaly_anchor = max_gpu_prob
+        
+        # Check if GPU specialists have internal conflict — if so, disable anchoring
+        # Conflict = large spread between most and least suspicious GPU specialists
+        min_gpu_prob = min(gpu_specialist_probs) if gpu_specialist_probs else 0.0
+        gpu_spread = max_gpu_prob - min_gpu_prob
+        gpu_has_conflict = gpu_spread > 0.30 and len(gpu_specialist_probs) >= 2
+        if gpu_has_conflict:
+            # GPU specialists contradict each other — just use base average,
+            # and also disable degradation boost (conflict already embeds uncertainty)
+            anomaly_anchor = 0.0
+            consensus_anchor = 0.0
+            gpu_degradation_boost = 1.0
+            logger.info("Anomaly/Consensus anchors DISABLED: GPU spread=%.4f > 0.30 (%.2f to %.2f)",
+                       gpu_spread, min_gpu_prob, max_gpu_prob)
+        
+        # Pick the strongest signal from all three sources
+        candidate_score = max(base_ensemble, anomaly_anchor, consensus_anchor)
+        
+        # Apply GPU degradation boost (pushes fake_score UP when coverage is thin)
+        candidate_score = min(1.0, candidate_score * gpu_degradation_boost)
+        
+        fake_score = round(max(0.0, min(1.0, candidate_score)), 4)
+        
+        if candidate_score > base_ensemble:
+            logger.info("Score lifted from base=%.4f to %.4f (anchor=%.4f, consensus=%.4f, degradation=%.2f)",
+                       base_ensemble, candidate_score, anomaly_anchor, consensus_anchor, gpu_degradation_boost)
     
     # Convert to REAL probability: how likely is this media authentic?
     # 0.0 = definitely fake, 1.0 = definitely real

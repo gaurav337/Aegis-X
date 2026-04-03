@@ -92,31 +92,45 @@ class C2PATool(BaseForensicTool):
             is_ai_generated = False
             
             if c2pa_dict and "active_manifest" in c2pa_dict:
-                manifest_claim = c2pa_dict.get("manifests", {}).get(c2pa_dict["active_manifest"], {})
-                sig_info = manifest_claim.get("signature_info", {})
+                manifests_dict = c2pa_dict.get("manifests", {})
+                active_manifest = manifests_dict.get(c2pa_dict["active_manifest"], {})
+                
+                sig_info = active_manifest.get("signature_info", {})
                 signer = sig_info.get("issuer")
                 timestamp = sig_info.get("time")
                 
-                # Check assertions for AI generation
-                assertions = manifest_claim.get("assertions", [])
-                ai_keywords = ["gemini", "midjourney", "dall-e", "stable diffusion", "openai", "firefly", "ai", "generated"]
+                # Check assertions for AI generation across ALL manifests (historical edits/creations)
+                ai_keywords = ["gemini", "midjourney", "dall-e", "stable diffusion", "openai", "firefly", "ai ", " ai", "generated"]
                 
-                for assertion in assertions:
-                    label = assertion.get("label", "")
-                    data = assertion.get("data", {})
-                    
-                    if label == "c2pa.actions":
-                        actions = data.get("actions", [])
-                        for action in actions:
-                            action_type = action.get("action", "").lower()
-                            software_agent = action.get("softwareAgent", "").lower()
-                            
-                            if ("generator" in action_type) or ("generated" in action_type) or (("c2pa.created" in action_type) and any(kw in software_agent for kw in ai_keywords)):
-                                is_ai_generated = True
+                for manifest_id, manifest_claim in manifests_dict.items():
+                    assertions = manifest_claim.get("assertions", [])
+                    for assertion in assertions:
+                        label = assertion.get("label", "")
+                        data = assertion.get("data", {})
+                        
+                        if label == "c2pa.actions" or label == "c2pa.actions.v2":
+                            actions = data.get("actions", [])
+                            for action in actions:
+                                action_type = action.get("action", "").lower()
+                                software_agent = action.get("softwareAgent", "").lower()
+                                description = action.get("description", "").lower()
+                                source_type = action.get("digitalSourceType", "").lower()
                                 
-                            for kw in ai_keywords:
-                                if kw in software_agent or kw in action_type:
-                                    is_ai_generated = True
+                                # Standard IPTC code for AI Generation
+                                if "trainedalgorithmicmedia" in source_type or "composite" in source_type:
+                                    # Note: composite can mean AI or just Photoshop layering, but trainedAlgorithmicMedia is definitively AI
+                                    if "trainedalgorithmicmedia" in source_type or "algorithmic" in source_type:
+                                        is_ai_generated = True
+                                
+                                # Fallback keyword matching on action, software, and description
+                                combined_text = f"{action_type} {software_agent} {description}"
+                                if "c2pa.created" in action_type or "generator" in action_type or "generated" in action_type:
+                                    if any(kw in combined_text for kw in ai_keywords):
+                                        is_ai_generated = True
+                                        
+                                for kw in ai_keywords:
+                                    if kw in software_agent or kw in description:
+                                        is_ai_generated = True
             
             # --- Verification Logic ---
             has_valid_sig = signer is not None

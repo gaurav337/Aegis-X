@@ -154,14 +154,39 @@ class UnivFDTool(BaseForensicTool):
     def _run_inference(self, input_data: dict) -> ToolResult:
         start_time = time.time()
         tracked_faces = input_data.get("tracked_faces", [])
+        media_path = input_data.get("media_path", None)
         
-        if not tracked_faces:
+        # Build list of PIL crops to score
+        pil_crops = []
+        
+        if tracked_faces:
+            for face in tracked_faces:
+                face_crop = getattr(face, "face_crop_224", None)
+                if face_crop is None:
+                    continue
+                if isinstance(face_crop, np.ndarray):
+                    if face_crop.dtype != np.uint8:
+                        face_crop = face_crop.astype(np.uint8)
+                    pil_crops.append(Image.fromarray(face_crop))
+                elif isinstance(face_crop, Image.Image):
+                    pil_crops.append(face_crop)
+        
+        # No-face fallback: use the raw image resized to 224x224
+        if not pil_crops and media_path:
+            try:
+                raw_img = Image.open(media_path).convert("RGB").resize((224, 224), Image.LANCZOS)
+                pil_crops.append(raw_img)
+                logger.info("UnivFD: No faces found, falling back to raw image analysis.")
+            except Exception as e:
+                logger.warning(f"UnivFD: Failed to load raw image from {media_path}: {e}")
+        
+        if not pil_crops:
             return ToolResult(
                 tool_name=self.tool_name, 
                 success=False, score=0.0, confidence=0.0, details={}, error=True,
-                error_msg="No tracked faces found.",
+                error_msg="No image data available for analysis.",
                 execution_time=time.time() - start_time,
-                evidence_summary="UnivFD detector: No faces found."
+                evidence_summary="UnivFD detector: No image data available."
             )
 
         worst_face_score = 0.0
@@ -182,23 +207,7 @@ class UnivFDTool(BaseForensicTool):
                 
             device = next(wrapper.parameters()).device if list(wrapper.parameters()) else torch.device("cpu")
             
-            for face in tracked_faces:
-                face_crop = getattr(face, "face_crop_224", None)
-                if face_crop is None:
-                    continue
-                    
-                if isinstance(face_crop, np.ndarray):
-                    # OpenCV uses BGR natively. If the pipeline gave us RGB or BGR, we must handle it.
-                    # Usually tracked_faces crops are stored as RGB in Aegis-X preprocessing.
-                    if face_crop.dtype != np.uint8:
-                        face_crop = face_crop.astype(np.uint8)
-                    pil_crop = Image.fromarray(face_crop)
-                elif isinstance(face_crop, Image.Image):
-                    pil_crop = face_crop
-                else:
-                    logger.warning("Unknown face crop type passed to UnivFD.")
-                    continue
-                
+            for pil_crop in pil_crops:
                 # Original orientation
                 score = self._score_single_crop(wrapper, pil_crop, device)
                 

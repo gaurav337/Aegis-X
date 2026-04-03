@@ -313,19 +313,22 @@ Converts raw tool scores into a structured Phi-3 Mini prompt.
 ### File: `core/tools/registry.py`
 **Single source of truth** for all tool metadata and runtime instances.
 
-#### Tool Manifest (weights sum to 1.0)
+#### Tool Manifest (v4.0 — Decider/Supporter Hierarchy)
 
-| Tool | Weight | Category | Trust Tier |
-|------|--------|----------|------------|
-| `check_c2pa` | 0.05 | PROVENANCE | 2 |
-| `run_rppg` | 0.08 | BIOLOGICAL | 2 |
-| `run_dct` | 0.07 | FREQUENCY | 1 |
-| `run_geometry` | 0.20 | GEOMETRIC | 3 |
-| `run_illumination` | 0.05 | FREQUENCY | 1 |
-| `run_corneal` | 0.08 | BIOLOGICAL | 2 |
-| `run_siglip_adapter` | 0.17 | SEMANTIC | 2 |
-| `run_sbi` | 0.20 | GENERATIVE | 3 |
-| `run_freqnet` | 0.10 | FREQUENCY | 1 |
+| Tool | Weight | Category | Role | Trust Tier |
+|------|--------|----------|------|------------|
+| `check_c2pa` | 0.05 | PROVENANCE | Gate | 2 |
+| `run_rppg` | 0.06 | BIOLOGICAL | Supporter | 2 |
+| `run_dct` | 0.04 | FREQUENCY | Supporter | 1 |
+| `run_geometry` | 0.08 | GEOMETRIC | Supporter | 1 |
+| `run_illumination` | 0.04 | FREQUENCY | Supporter | 1 |
+| `run_corneal` | 0.04 | BIOLOGICAL | Supporter | 1 |
+| `run_univfd` | 0.22 | SEMANTIC | Decider | 3 |
+| `run_sbi` | 0.25 | GENERATIVE | Decider | 3 |
+| `run_xception` | 0.15 | SEMANTIC | Decider | 2 |
+| `run_freqnet` | 0.10 | FREQUENCY | Decider | 1 |
+
+> **v4.0 change**: SigLIP adapter replaced by UnivFD (CLIP-ViT-L/14). GPU tools (Deciders) control ensemble verdict. CPU tools (Supporters) inform but cannot override. All GPU tools fall back to raw image analysis when no faces detected.
 
 #### `class ToolRegistry`
 
@@ -756,23 +759,29 @@ Data container for a single detected identity. Holds:
 
 ---
 
-### File: `utils/ensemble.py` — Ensemble Scoring Engine {#ensemble}
+### File: `utils/ensemble.py` — Ensemble Scoring Engine (v4.0 — Three-Pronged Anomaly Detection) {#ensemble}
 
-Aggregates all tool results into a single deepfake probability.
+Aggregates all tool results into a single deepfake probability using a multi-layered scoring algorithm.
 
 #### Key Functions
 
 | Function | What it does |
 |----------|-------------|
-| `calculate_ensemble_score(tool_results, ...)` | 4-step: (1) extract context (DCT compression, SigLIP score), (2) C2PA override check with visual corroboration, (3) route each tool to get (contribution, effective_weight), (4) final score = sum(contributions)/sum(weights) |
+| `calculate_ensemble_score(tool_results, ...)` | Three-pronged scoring: (1) weighted average as base, (2) Suspicion Overdrive max-pool with GPU conflict guard, (3) Borderline Consensus boost, (4) GPU Coverage Degradation penalty |
 | `_route(result, context, ...)` | Tool-specific routing logic: rPPG routes based on PULSE/NO_PULSE label; SBI has blind-spot threshold; FreqNet has compression discount; C2PA always returns (0,0) — it's a gate not a scorer |
 | `stream_ensemble_score(iterator, ...)` | Video streaming: processes per-subject, per-frame results; applies EMA temporal smoothing; hard-resets on tracking loss (scene cut) |
 | `_compute_conflict_std(implied_probs)` | Population std dev of per-tool implied probabilities. High std = tools disagree = `has_conflict=True` |
 
+#### v4.0 Three-Pronged Anomaly Detection
+- **Prong 1 — Suspicion Overdrive**: If any GPU specialist's fake probability > 0.70, max-pool fires. BUT: GPU Conflict Guard checks spread (max - min) first. If spread > 0.30, specialists contradict each other → falls back to weighted average.
+- **Prong 2 — Borderline Consensus**: If ≥2 GPU specialists cluster in [0.35, 0.55] zone, their mean is boosted 1.25× as a corroboration signal.
+- **Prong 3 — GPU Coverage Degradation**: Each abstained GPU specialist applies +0.10 multiplicative boost to fake_score. Disabled when GPU conflict detected.
+
 #### Notable Design Decisions
 - **SBI blind-spot**: SBI scores below `SBI_BLIND_SPOT_THRESHOLD` are treated as abstentions (score=0, weight=0) — low-confidence SBI shouldn't downvote real images
-- **C2PA visual contradiction check**: If C2PA says real but SigLIP/SBI/FreqNet say >70% fake, C2PA override is **not** applied (logs warning instead)
+- **C2PA visual contradiction check**: If C2PA says real but UnivFD/SBI/FreqNet say >70% fake, C2PA override is **not** applied (logs warning instead)
 - **EMA smoothing** for video: `score_t = α × raw_t + (1-α) × score_{t-1}` per subject ID
+- **Abstention transparency**: Tools with confidence=0 display `[ABSTAINED] N/A` in UI and LLM prompt
 
 ---
 
@@ -794,8 +803,10 @@ Controls GPU memory for all GPU tools to prevent OOM.
 All numerical thresholds and weights in ONE file. This is the single source of truth used by all tools and the ensemble.
 
 Key groups:
-- **Tool weights**: `WEIGHT_SIGLIP=0.17`, `WEIGHT_GEOMETRY=0.20`, `WEIGHT_SBI=0.20`, etc.
-- **Ensemble thresholds**: `ENSEMBLE_REAL_THRESHOLD`, `ENSEMBLE_FAKE_THRESHOLD`
+- **GPU Decider weights**: `WEIGHT_UNIVFD=0.22`, `WEIGHT_XCEPTION=0.15`, `WEIGHT_SBI=0.25`, `WEIGHT_FREQNET=0.10`
+- **CPU Supporter weights**: `WEIGHT_GEOMETRY=0.08`, `WEIGHT_DCT=0.04`, `WEIGHT_ILLUMINATION=0.04`, `WEIGHT_CORNEAL=0.04`
+- **Ensemble thresholds**: `ENSEMBLE_REAL_THRESHOLD=0.50`, `SUSPICION_OVERRIDE_THRESHOLD=0.70`
+- **v4.0 Anomaly constants**: `BORDERLINE_CONSENSUS_BOOST=1.25`, `GPU_COVERAGE_DEGRADATION_FACTOR=0.10`
 - **Per-tool thresholds**: `GEOMETRY_IPD_RATIO_MIN/MAX`, `CORNEAL_MAX_DIVERGENCE`, `RPPG_SNR_THRESHOLD`, etc.
 - **EMA smoothing**: `EMA_SMOOTHING_ALPHA`, `EMA_SMOOTHING_ENABLED`
 
@@ -1080,13 +1091,13 @@ This section walks through **exactly** what happens when a static image is submi
 ### 🔴 Edge Cases NOT YET COVERED:
 - **Upscaled/AI-enhanced images** where the original face was tiny — landmarks may be unreliable on upscaled textures
 - **Cartoon / anime deepfakes** — MediaPipe fails on non-photorealistic faces
-- **Non-face AI-generated content** (AI backgrounds, AI objects) — outside current scope
+- **Non-face AI-generated content** (AI backgrounds, AI objects) — **now covered in v4.0** via raw image fallback (GPU tools analyze full image when no faces detected)
 
 ---
 
 ## Step 2 — Tool 1: C2PA Provenance Check
 **File**: `core/tools/c2pa_tool.py` → `C2PATool._run_inference()`  
-**Phase**: CPU | **Weight**: 0.05 | **Trust Tier**: 2
+**Phase**: CPU | **Weight**: 0.05 | **Role**: Gate | **Trust Tier**: 2
 
 ### What Activates:
 The tool reads the media file path directly from `input_data["media_path"]`. It does NOT analyze pixels — it reads embedded cryptographic metadata.
@@ -1123,7 +1134,9 @@ The tool reads the media file path directly from `input_data["media_path"]`. It 
 
 ## Step 3 — Tool 2: DCT Frequency Artifact Check
 **File**: `core/tools/dct_tool.py` → `DCTTool._run_inference()`  
-**Phase**: CPU | **Weight**: 0.07 | **Trust Tier**: 1
+**Phase**: CPU | **Weight**: 0.04 | **Role**: Supporter | **Trust Tier**: 1
+
+> **v4.0**: DCT now falls back to raw image analysis when no tracked faces are available.
 
 ### What Activates:
 Takes `tracked_faces[].face_crop_224` from the preprocessing result. No model needed — pure math.
@@ -1160,7 +1173,9 @@ Takes `tracked_faces[].face_crop_224` from the preprocessing result. No model ne
 
 ## Step 4 — Tool 3: Anthropometric Geometry Check
 **File**: `core/tools/geometry_tool.py` → `GeometryTool._run_inference()`  
-**Phase**: CPU | **Weight**: 0.20 | **Trust Tier**: 3 (must-run for safety)
+**Phase**: CPU | **Weight**: 0.08 | **Role**: Supporter | **Trust Tier**: 1
+
+> **v4.0 demotion**: Geometry was demoted from 0.20 (Decider) to 0.08 (Supporter) because noisy CPU heuristics were overriding GPU deep-learning models.
 
 ### What Activates:
 Takes `tracked_faces[].landmarks` (478×2 array) directly. Does NOT use the face crop — works purely in landmark coordinate space.
@@ -1205,7 +1220,7 @@ Takes `tracked_faces[].landmarks` (478×2 array) directly. Does NOT use the face
 
 ## Step 5 — Tool 4: Illumination Consistency Check
 **File**: `core/tools/illumination_tool.py` → `IlluminationTool._run_inference()`  
-**Phase**: CPU | **Weight**: 0.05 | **Trust Tier**: 1
+**Phase**: CPU | **Weight**: 0.04 | **Role**: Supporter | **Trust Tier**: 1
 
 ### What Activates:
 Takes `tracked_faces[].face_crop_224` AND the original full `frames_30fps[0]` (original image as a frame) and the face bounding box. Both are needed — the face and the scene context.
@@ -1245,7 +1260,7 @@ Takes `tracked_faces[].face_crop_224` AND the original full `frames_30fps[0]` (o
 
 ## Step 6 — Tool 5: Corneal Reflection Check
 **File**: `core/tools/corneal_tool.py` → `CornealTool._run_inference()`  
-**Phase**: CPU | **Weight**: 0.08 | **Trust Tier**: 2
+**Phase**: CPU | **Weight**: 0.04 | **Role**: Supporter | **Trust Tier**: 1
 
 ### What Activates:
 Takes `tracked_faces[].face_crop_224`, `tracked_faces[].landmarks` (must have ≥478 points for iris nodes 468, 473), and `tracked_faces[].trajectory_bboxes` for coordinate transformation.
@@ -1309,9 +1324,11 @@ After each CPU tool completes, the agent calls `EarlyStoppingController.evaluate
 
 ---
 
-## Step 7 — Tool 6: SigLIP Forensic Adapter
-**File**: `core/tools/siglip_adapter_tool.py` → `SiglipForensicAdapter._run_inference()`  
-**Phase**: GPU | **Weight**: 0.17 | **Trust Tier**: 2
+## Step 7 — Tool 6: UnivFD (AI-Generated Image Specialist)
+**File**: `core/tools/univfd_tool.py` → `UnivFDTool._run_inference()`  
+**Phase**: GPU | **Weight**: 0.22 | **Role**: Decider | **Trust Tier**: 3
+
+> **v4.0**: SigLIP adapter replaced by UnivFD (CLIP-ViT-L/14 linear probe, CVPR 2023). Falls back to raw image when no faces detected.
 
 ### What Activates:
 Requires CUDA. Takes `tracked_faces[].face_crop_224` (or `face_crop_380`). Produces 6 copies of the best face crop as input (TTA: original + horizontal flip = 2 passes of 6 each).

@@ -5,6 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const previewContainer = document.getElementById("preview-container");
     const imagePreview = document.getElementById("image-preview");
     const videoPreview = document.getElementById("video-preview");
+    const resultImagePreview = document.getElementById("result-image-preview");
+    const resultVideoPreview = document.getElementById("result-video-preview");
     const analyzeBtn = document.getElementById("analyze-btn");
     const removeBtn = document.getElementById("remove-btn");
 
@@ -54,10 +56,22 @@ document.addEventListener("DOMContentLoaded", () => {
             imagePreview.style.display = "none";
             videoPreview.src = fileURL;
             videoPreview.style.display = "block";
+            
+            if (resultImagePreview) resultImagePreview.style.display = "none";
+            if (resultVideoPreview) {
+                resultVideoPreview.src = fileURL;
+                resultVideoPreview.style.display = "block";
+            }
         } else {
             videoPreview.style.display = "none";
             imagePreview.src = fileURL;
             imagePreview.style.display = "block";
+            
+            if (resultVideoPreview) resultVideoPreview.style.display = "none";
+            if (resultImagePreview) {
+                resultImagePreview.src = fileURL;
+                resultImagePreview.style.display = "block";
+            }
         }
 
         uploadContent.style.display = "none";
@@ -175,17 +189,27 @@ document.addEventListener("DOMContentLoaded", () => {
                         
                         if (res.success) {
                             const realProb = 1.0 - res.score;
-                            cardInner += `
-                            <div class="tool-metrics">
-                                <div class="metric">
-                                    <span class="metric-label">Authenticity</span>
-                                    <span class="metric-value" style="color: ${realProb < 0.5 ? 'var(--alert)' : 'var(--success)'}">${(realProb * 100).toFixed(0)}%</span>
-                                </div>
-                                <div class="metric">
-                                    <span class="metric-label">Confidence</span>
-                                    <span class="metric-value">${(res.confidence || 0).toFixed(2)}</span>
-                                </div>
-                            </div>`;
+                            if (res.confidence > 0) {
+                                cardInner += `
+                                <div class="tool-metrics">
+                                    <div class="metric">
+                                        <span class="metric-label">Authenticity</span>
+                                        <span class="metric-value" style="color: ${realProb < 0.5 ? 'var(--alert)' : 'var(--success)'}">${(realProb * 100).toFixed(0)}%</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-label">Confidence</span>
+                                        <span class="metric-value">${(res.confidence || 0).toFixed(2)}</span>
+                                    </div>
+                                </div>`;
+                            } else {
+                                cardInner += `
+                                <div class="tool-metrics">
+                                    <div class="metric">
+                                        <span class="metric-label">Abstained</span>
+                                        <span class="metric-value" style="color: #888">N/A</span>
+                                    </div>
+                                </div>`;
+                            }
                         }
 
                         cardInner += `
@@ -266,10 +290,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (imagePreview.src) {
             URL.revokeObjectURL(imagePreview.src);
             imagePreview.src = "";
+            if (resultImagePreview) resultImagePreview.src = "";
         }
         if (videoPreview.src) {
             URL.revokeObjectURL(videoPreview.src);
             videoPreview.src = "";
+            if (resultVideoPreview) resultVideoPreview.src = "";
         }
 
         currentFile = null;

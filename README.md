@@ -4,11 +4,11 @@
   <img src="https://img.shields.io/badge/CUDA-RTX_3050+-76B900?style=for-the-badge&logo=nvidia&logoColor=white" />
   <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white" />
   <img src="https://img.shields.io/badge/Ollama-Phi3:Mini-FF6F00?style=for-the-badge&logo=meta&logoColor=white" />
-  <img src="https://img.shields.io/badge/Version-3.0_(Dual--Pipeline)-8B5CF6?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Version-4.0_(Anomaly--Shield)-8B5CF6?style=for-the-badge" />
 </p>
 
 <h1 align="center">🛡️ Aegis-X</h1>
-<h3 align="center">Advanced Deepfake Forensic Detection — Dual-Pipeline Architecture</h3>
+<h3 align="center">Advanced Deepfake Forensic Detection — Dual-Pipeline with Anomaly Shield</h3>
 
 <p align="center">
   <em>A multi-modal, agentic forensic system that orchestrates 10 specialized detection tools — spanning classical physics, frequency analysis, physiological signals, and deep neural networks — through an intelligent CPU→GPU dual-pipeline to deliver explainable, confidence-weighted verdicts on media authenticity.</em>
@@ -30,16 +30,17 @@
 ## ✨ Key Features
 
 - **10-Tool Forensic Arsenal** — 6 CPU-bound classical/physics/signal tools + 4 GPU-accelerated neural networks, each targeting an independent manipulation vector
-- **Dual-Pipeline with Face Gate** — Media is intelligently routed: a 4-dimension Face Gate decides whether the full bio-signal CPU path runs before GPU inference
+- **Dual-Pipeline with Face Gate** — Media is intelligently routed: a 4-dimension Face Gate decides whether the full bio-signal CPU path runs before GPU inference. **No-face media** skips bio-signal tools and runs the frequency/spectral GPU pipeline directly
 - **CPU→GPU Early Stopping Gate** — After the CPU phase, a directional confidence gate (`HALT` / `MINIMAL_GPU` / `FULL_GPU`) prevents unnecessary GPU execution when the CPU already has consensus
+- **Three-Pronged Anomaly Shield (v4.0)** — Prevents clean-signal dilution: Suspicion Overdrive (hard GPU max-pool with conflict guard), Borderline Consensus Detection (corroborated weak signals), and GPU Coverage Degradation (penalty when specialists abstain)
+- **C2PA AI-Generation Detection** — Recursively scans all embedded C2PA manifests (including historical ingredients) for AI-generation indicators (IPTC `trainedAlgorithmicMedia`, software agent strings like Gemini/Midjourney). Issues immediate FAKE verdict for AI-generated content, REAL for authentic hardware capture
+- **GPU Specialist Hierarchy** — GPU neural networks (UnivFD, Xception, SBI, FreqNet) are the "deciders" with weights 0.10–0.25. CPU tools (DCT, Geometry, Corneal, Illumination) are "supporters" with weights 0.04–0.08 — they inform but never override GPU consensus
+- **Abstention Transparency** — Tools with `confidence = 0` display `[ABSTAINED] N/A` in the UI and LLM prompt, preventing the "100% Authentic" hallucination trap
 - **30s CPU / 60s GPU Per-Tool Timeouts** — `ThreadPoolExecutor`-enforced timeouts on every tool; hung tools never block the pipeline
-- **Centralized Error Factory** — `_make_error_result()` unifies all tool error `ToolResult` construction across CPU and GPU phases, ensuring structural parity
-- **DRY VRAM Execution** — GPU tools use closure-safe `make_loader(t)` / `make_inference(data)` factory functions; no late-binding capture bugs
 - **DEGRADED Mode Propagation** — If >50% of tools error out, the verdict dict and SSE events include `"degraded": true` for consumers
 - **MediaPipe + CPU-SORT Tracking** — Bidirectional face tracking with Kalman filters; `max_confidence` derived from tracking coverage ratio (not hardcoded 1.0)
-- **rPPG Temporal Window Safety** — `face_window = (0, 0)` now returns ABSTAIN instead of silently processing all frames as noise
 - **Explainable AI Verdicts** — Every verdict is grounded in tool-level evidence summaries, passed to Ollama's Phi-3 Mini for natural-language forensic explanations
-- **Real-Time Streaming UI** — Glassmorphic web interface with Server-Sent Events (SSE) for live tool-by-tool progress updates
+- **Real-Time Streaming UI** — Glassmorphic web interface with Server-Sent Events (SSE) for live tool-by-tool progress, persistent media preview in results view
 
 ---
 
@@ -296,9 +297,14 @@ gate_decision ≠ HALT?
         "run_sbi":     0.8 GB
     }
     ──────────────────────────────────────────────────
-    # Closure-safe factory (v3.0 fix)
-    make_loader(tool)      → lambda: tool (bound by value)
-    make_inference(data)   → lambda t: t.execute(data)
+
+    RAW IMAGE FALLBACK (v4.0):               ← no-face pipeline
+      Each GPU tool checks tracked_faces first.
+      If empty → loads raw image from media_path:
+        FreqNet:  resize 224×224, analyze frequency artifacts
+        UnivFD:   resize 224×224, CLIP+probe AI detection
+        Xception: original res → internal 299×299 resize
+        SBI:      NOT RUN (requires face crops by design)
 
     ThreadPoolExecutor → run_with_vram_cleanup(
         make_loader(tool),
@@ -342,27 +348,29 @@ gate_decision ≠ HALT?
 
 ### CPU Tools (`.venv_main` — Zero VRAM)
 
-| Tool | File | Weight | Trust | Target Threat | Method |
+| Tool | File | Weight | Role | Target Threat | Method |
 |---|---|---|---|---|---|
-| `check_c2pa` | `c2pa_tool.py` | 0.05 | Tier 1 | Provenance forgery | Cryptographic C2PA metadata chain |
-| `run_dct` | `dct_tool.py` | 0.15 | Tier 1 | JPEG re-encoding | Double-quantization frequency peaks |
-| `run_geometry` | `geometry_tool.py` | 0.18 | Tier 3 | Anthropometric distortion | IPD, philtrum, vertical thirds (MediaPipe 468-pt) |
-| `run_illumination` | `illumination_tool.py` | 0.10 | Tier 1 | Lighting inconsistency | Gradient-based directional light analysis |
-| `run_corneal` | `corneal_tool.py` | 0.10 | Tier 2 | Missing/mismatched catchlights | Bilateral reflection detection + divergence score |
-| `run_rppg` | `rppg_tool.py` | 0.35* | Tier 2 | Absent biological signal | POS rPPG + FFT (0.7–4 Hz cardiac band) |
+| `check_c2pa` | `c2pa_tool.py` | 0.05 | Gate | Provenance forgery / AI generation | Recursive C2PA manifest scan (IPTC tags + software agents) |
+| `run_dct` | `dct_tool.py` | 0.04 | Supporter | JPEG re-encoding | Double-quantization frequency peaks |
+| `run_geometry` | `geometry_tool.py` | 0.08 | Supporter | Anthropometric distortion | IPD, philtrum, vertical thirds (MediaPipe 468-pt) |
+| `run_illumination` | `illumination_tool.py` | 0.04 | Supporter | Lighting inconsistency | Gradient-based directional light analysis |
+| `run_corneal` | `corneal_tool.py` | 0.04 | Supporter | Missing/mismatched catchlights | Bilateral reflection detection + divergence score |
+| `run_rppg` | `rppg_tool.py` | 0.06 | Supporter | Absent biological signal | POS rPPG + FFT (0.7–4 Hz cardiac band) |
 
-> *rPPG weight is only active in the CPU→GPU gate calculation. In the ensemble it uses `WEIGHT_RPPG` from thresholds.py. Video-only.
+> **Supporters** inform the weighted average but cannot unilaterally override GPU specialist verdicts. rPPG is video-only.
 
 ### GPU Tools (`.venv_gpu` — Sequential VRAM Loading)
 
-| Tool | File | VRAM | Weight | Trust | Architecture | Checkpoint |
+| Tool | File | VRAM | Weight | Role | Architecture | Checkpoint |
 |---|---|---|---|---|---|---|
-| `run_freqnet` | `freqnet_tool.py` | 0.4 GB | 0.09 | Tier 1 | CNNDetect ResNet-50 + FADHook DCT | [Wang et al. CVPR 2020](https://github.com/PeterWang4158/CNNDetect) |
-| `run_univfd` | `univfd_tool.py` | 0.6 GB | 0.20 | Tier 3 | CLIP-ViT-L/14 + 4KB linear probe | [Ojha et al. CVPR 2023](https://github.com/ojha-group/UnivFD) |
-| `run_xception` | `xception_tool.py` | 0.5 GB | 0.15 | Tier 2 | Xception (FaceForensics++) | [HongguLiu/Deepfake-Detection](https://github.com/HongguLiu/Deepfake-Detection) |
-| `run_sbi` | `sbi_tool.py` | 0.8 GB | 0.20 | Tier 3 | EfficientNet-B4 + GradCAM | [mapooon/SelfBlendedImages](https://github.com/mapooon/SelfBlendedImages) |
+| `run_freqnet` | `freqnet_tool.py` | 0.4 GB | 0.10 | Decider | CNNDetect ResNet-50 + FADHook DCT | [Wang et al. CVPR 2020](https://github.com/PeterWang4158/CNNDetect) |
+| `run_univfd` | `univfd_tool.py` | 0.6 GB | 0.22 | Decider | CLIP-ViT-L/14 + 4KB linear probe | [Ojha et al. CVPR 2023](https://github.com/ojha-group/UnivFD) |
+| `run_xception` | `xception_tool.py` | 0.5 GB | 0.15 | Decider | Xception (FaceForensics++) | [HongguLiu/Deepfake-Detection](https://github.com/HongguLiu/Deepfake-Detection) |
+| `run_sbi` | `sbi_tool.py` | 0.8 GB | 0.25 | Decider | EfficientNet-B4 + GradCAM | [mapooon/SelfBlendedImages](https://github.com/mapooon/SelfBlendedImages) |
 
 > **Peak VRAM:** Never additive. Load → Run → `synchronize → del → gc → empty_cache` between each tool. Max single model = 0.8 GB (SBI).
+>
+> **No-Face Fallback (v4.0):** When no faces are detected, FreqNet/UnivFD/Xception load the raw image from `media_path` instead of erroring. SBI is excluded from the no-face pipeline.
 
 ---
 
@@ -504,7 +512,7 @@ Best face by confidence wins. Returns ToolResult with liveness_label.
 
 ---
 
-### `utils/ensemble.py` — Score Aggregation
+### `utils/ensemble.py` — Score Aggregation (v4.0 — Three-Pronged Anomaly Shield)
 
 ```
 calculate_ensemble_score()
@@ -514,18 +522,28 @@ calculate_ensemble_score()
     each tool returns (contribution, effective_weight)
     Routing rules:
       rPPG    → threshold gated (uses implied prob only at extremes)
-      SBI     → blind spot below threshold; mid-band uses UnivFD context
-      FreqNet → blind spot below threshold; compression discount
+      SBI     → blind spot below 0.50; mid-band uses UnivFD context
+      FreqNet → blind spot below 0.45; compression discount
       UnivFD/Xception → direct score × weight
-  Step 4: Suspicion Overdrive
-    max_prob = max(gpu_specialist implied probs)
-    if max_prob > SUSPICION_OVERRIDE_THRESHOLD:
-        fake_score = max_prob   (hard max-pooling)
-    else:
-        fake_score = weighted_average
+      CPU tools → low weight (0.04–0.08), supporters only
+  Step 4: Three-Pronged Anomaly Scoring
+    PRONG 1 — Suspicion Overdrive:
+      max_gpu_prob = max(GPU specialist implied probs)
+      if max_gpu_prob > 0.70:
+        GPU spread check (max - min > 0.30 → conflict → use base avg)
+        else: fake_score = max_gpu_prob (hard max-pooling)
+    PRONG 2 — Borderline Consensus:
+      if ≥2 GPU specialists in [0.35, 0.55] zone:
+        consensus = mean × 1.25 boost
+    PRONG 3 — GPU Coverage Degradation:
+      per-abstained GPU specialist: +10% multiplicative boost
+      disabled when GPU conflict detected (prevents double-penalty)
+    Final: fake_score = max(base_avg, anomaly_anchor, consensus)
+           × gpu_degradation_boost
+    GPU conflict guard: if spread > 0.30, anchors disabled → pure avg
 
 ensemble_score = 1.0 - fake_score   (REAL probability)
-verdict = "FAKE" if ensemble_score ≤ ENSEMBLE_REAL_THRESHOLD else "REAL"
+verdict = "FAKE" if ensemble_score ≤ 0.50 else "REAL"
 ```
 
 ---
@@ -641,15 +659,18 @@ cp .env.example .env
 
 | Threshold | Value | Purpose |
 |---|---|---|
-| `ENSEMBLE_REAL_THRESHOLD` | 0.15 | `ensemble_score` ≤ this → FAKE verdict |
-| `ENSEMBLE_FAKE_THRESHOLD` | 0.85 | Score ≥ this → confident FAKE |
-| `SUSPICION_OVERRIDE_THRESHOLD` | 0.75 | Hard max-pooling trigger for GPU specialists |
+| `ENSEMBLE_REAL_THRESHOLD` | 0.50 | `ensemble_score` ≤ this → FAKE verdict |
+| `ENSEMBLE_FAKE_THRESHOLD` | 0.60 | Score ≥ this → confident FAKE |
+| `SUSPICION_OVERRIDE_THRESHOLD` | 0.70 | Hard max-pooling trigger for GPU specialists |
+| `BORDERLINE_CONSENSUS_LOW` | 0.35 | Lower bound of borderline detection zone |
+| `BORDERLINE_CONSENSUS_HIGH` | 0.55 | Upper bound of borderline detection zone |
+| `BORDERLINE_CONSENSUS_BOOST` | 1.25 | Corroboration multiplier for consensus |
+| `GPU_COVERAGE_DEGRADATION_FACTOR` | 0.10 | Per-abstained GPU specialist penalty |
 | `CONFLICT_STD_THRESHOLD` | 0.20 | Tool disagreement level flagged as conflict |
-| `SBI_FAKE_THRESHOLD` | 0.60 | SBI score above this = blend detected |
-| `UNIVFD_FAKE_THRESHOLD` | 0.60 | UnivFD score above this = generative AI detected |
+| `SBI_BLIND_SPOT_THRESHOLD` | 0.50 | SBI score below this → abstain |
+| `FREQNET_BLIND_SPOT_THRESHOLD` | 0.45 | FreqNet score below this → abstain |
 | `RPPG_CARDIAC_BAND_MIN_HZ` | 0.7 | Lower bound of cardiac frequency (42 BPM) |
 | `RPPG_CARDIAC_BAND_MAX_HZ` | 4.0 | Upper bound of cardiac frequency (240 BPM) |
-| `RPPG_HAIR_OCCLUSION_VARIANCE` | 35.0 | Laplacian variance threshold for hair occlusion |
 
 ---
 
@@ -694,7 +715,7 @@ aegis-x/
 ├── utils/
 │   ├── vram_manager.py         # GPU lifecycle (sync→del→gc→empty_cache) + RLock
 │   ├── preprocessing.py        # ★ MediaPipe + CPU-SORT tracking + face crops
-│   ├── ensemble.py             # Weighted scoring + Suspicion Overdrive + C2PA guard
+│   ├── ensemble.py             # ★ Three-Pronged Anomaly Shield + Suspicion Overdrive + C2PA guard
 │   ├── thresholds.py           # ★ Central numeric constants (single source of truth)
 │   ├── ollama_client.py        # HTTP client for local Ollama server
 │   ├── video.py                # Video I/O (torchcodec → OpenCV fallback)

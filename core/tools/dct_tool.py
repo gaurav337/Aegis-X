@@ -201,42 +201,51 @@ class DCTTool(BaseForensicTool):
         start_time = time.time()
 
         # ✅ FIX 5: Rely on Preprocessing Contract (Spec Section 1.5)
-        # Use face_crop_224 only — no fallback cropping from frames
         tracked_faces = input_data.get("tracked_faces", [])
         frames = input_data.get("frames_30fps", [])
+        media_path = input_data.get("media_path", None)
 
-        if not tracked_faces:
-            return self._abstain(start_time, "No tracked faces provided")
+        # Build crops list — face crops or raw image fallback
+        crops = []
+        if tracked_faces:
+            for face in tracked_faces:
+                crop = face.get("face_crop_224")
+                if crop is not None:
+                    crops.append(crop)
+        
+        # No-face fallback: load raw image
+        if not crops and media_path:
+            try:
+                from PIL import Image
+                raw_img = Image.open(media_path).convert("RGB").resize((224, 224), Image.LANCZOS)
+                crops.append(np.array(raw_img))
+            except Exception:
+                pass
+        
+        if not crops:
+            return self._abstain(start_time, "No image data available for analysis")
 
         # Compute hash for grid caching (use first frame of video if available)
         video_hash = self._compute_video_hash(frames) if frames else None
 
         # Determine grid alignment on the first available crop
         grid_dy, grid_dx = 0, 0
-        if video_hash:
-            first_face = next((f for f in tracked_faces if f.get("face_crop_224") is not None), None)
-            if first_face:
-                sample_crop = self._coerce_to_uint8(first_face["face_crop_224"])
-                sample_gray = self._to_gray(sample_crop)
-                grid_dy, grid_dx = self._find_optimal_grid(sample_gray, video_hash)
+        if video_hash and crops:
+            sample_crop = self._coerce_to_uint8(crops[0])
+            sample_gray = self._to_gray(sample_crop)
+            grid_dy, grid_dx = self._find_optimal_grid(sample_gray, video_hash)
 
         peak_ratios = []
-        faces_processed = 0
+        crops_processed = 0
 
-        for face in tracked_faces:
-            # ✅ FIX 5: Strict contract enforcement — use face_crop_224 only
-            crop = face.get("face_crop_224")
-            
-            if crop is None:
-                continue  # Skip face, don't attempt fallback crop
-
-            faces_processed += 1
+        for crop in crops:
+            crops_processed += 1
             gray = self._to_gray(self._coerce_to_uint8(crop))
             peak_ratio = self._compute_peak_ratio(gray, grid_dy, grid_dx)
             peak_ratios.append(peak_ratio)
 
-        if faces_processed == 0:
-            return self._abstain(start_time, "No valid face crops (224x224) found")
+        if crops_processed == 0:
+            return self._abstain(start_time, "No valid image crops found")
 
         avg_ratio = float(np.mean(peak_ratios))
         score = self._score_from_ratio(avg_ratio)
@@ -264,7 +273,7 @@ class DCTTool(BaseForensicTool):
             details={
                 "grid_artifacts": grid_artifacts,  # ✅ FIX 4: Required for ensemble routing
                 "peak_ratio": float(avg_ratio),
-                "faces_analyzed": faces_processed,
+                "faces_analyzed": crops_processed,
                 "grid_alignment": (grid_dy, grid_dx)
             },
             error=False,

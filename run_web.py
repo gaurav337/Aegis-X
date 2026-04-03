@@ -33,8 +33,6 @@ async def analyze_media(file: UploadFile = File(...)):
         
         # Preprocessing
         prep_result = preprocessor.process_media(file_path)
-        if not prep_result.has_face:
-            return JSONResponse(status_code=400, content={"error": "No faces detected in the media.", "success": False})
             
         # Run Tools with Streaming
         from core.agent import ForensicAgent
@@ -42,7 +40,7 @@ async def analyze_media(file: UploadFile = File(...)):
         async def event_generator():
             agent = ForensicAgent(config)
             
-            # Send initial success event
+            # Send initial success event (faces_detected can be 0 for no-face pipeline)
             yield f"data: {json.dumps({'event_type': 'init', 'faces_detected': len(prep_result.tracked_faces)})}\n\n"
             
             for event in agent.analyze(prep_result, media_path=str(file_path)):

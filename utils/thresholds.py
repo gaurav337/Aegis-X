@@ -29,16 +29,16 @@ FALLBACK_FPS = 30.0                 # Fallback FPS for OpenCV
 # ENSEMBLE WEIGHTS (Day 15)
 # =============================================================================
 
-WEIGHT_UNIVFD = 0.15
-WEIGHT_SIGLIP = 0.15                # Alias for backward compatibility
-WEIGHT_XCEPTION = 0.10
-WEIGHT_SBI = 0.18
-WEIGHT_FREQNET = 0.09
+WEIGHT_UNIVFD = 0.22
+WEIGHT_SIGLIP = 0.22                # Alias for backward compatibility
+WEIGHT_XCEPTION = 0.15
+WEIGHT_SBI = 0.25
+WEIGHT_FREQNET = 0.10
 WEIGHT_RPPG = 0.06
-WEIGHT_DCT = 0.07
-WEIGHT_GEOMETRY = 0.18
-WEIGHT_ILLUMINATION = 0.05
-WEIGHT_CORNEAL = 0.07
+WEIGHT_DCT = 0.04
+WEIGHT_GEOMETRY = 0.08
+WEIGHT_ILLUMINATION = 0.04
+WEIGHT_CORNEAL = 0.04
 WEIGHT_C2PA = 0.05
 
 # =============================================================================
@@ -47,9 +47,16 @@ WEIGHT_C2PA = 0.05
 
 REAL_THRESHOLD = 0.15               # FIX: For EarlyStoppingController
 FAKE_THRESHOLD = 0.85               # FIX: For EarlyStoppingController
-ENSEMBLE_REAL_THRESHOLD = 0.40
+ENSEMBLE_REAL_THRESHOLD = 0.50
 ENSEMBLE_FAKE_THRESHOLD = 0.60
 ENSEMBLE_INCONCLUSIVE_WEIGHT = 0.50
+
+# Borderline Consensus: when multiple GPU specialists cluster near 50%,
+# their agreement is itself a corroborating signal of manipulation.
+BORDERLINE_CONSENSUS_LOW = 0.35      # Lower bound of the "borderline" zone
+BORDERLINE_CONSENSUS_HIGH = 0.55     # Upper bound of the "borderline" zone
+BORDERLINE_CONSENSUS_BOOST = 1.25    # Corroboration multiplier
+GPU_COVERAGE_DEGRADATION_FACTOR = 0.10  # Per-abstained specialist penalty boost
 
 # =============================================================================
 # COMPRESSION DISCOUNTS (Cross-tool)
@@ -234,7 +241,7 @@ C2PA_CACHE_EXPIRY_SECONDS = 3600
 # =============================================================================
 
 CONFLICT_STD_THRESHOLD = 0.20
-SUSPICION_OVERRIDE_THRESHOLD = 0.50   # Max-pool fires when any specialist above this
+SUSPICION_OVERRIDE_THRESHOLD = 0.70   # Max-pool fires when any GPU specialist above this
 EMA_SMOOTHING_ALPHA = 0.30
 EMA_SMOOTHING_ENABLED = True
 

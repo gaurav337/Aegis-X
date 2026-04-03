@@ -145,14 +145,39 @@ class XceptionTool(BaseForensicTool):
     def _run_inference(self, input_data: dict) -> ToolResult:
         start_time = time.time()
         tracked_faces = input_data.get("tracked_faces", [])
+        media_path = input_data.get("media_path", None)
         
-        if not tracked_faces:
+        # Build list of numpy crops (RGB, uint8) to analyze
+        np_crops = []
+        
+        if tracked_faces:
+            for face in tracked_faces:
+                # Xception uses higher-res crops when available, fallback to 224
+                face_crop = getattr(face, "face_crop_380", getattr(face, "face_crop_224", None))
+                if face_crop is None:
+                    continue
+                if isinstance(face_crop, Image.Image):
+                    face_crop = np.array(face_crop)
+                if face_crop.dtype != np.uint8:
+                    face_crop = face_crop.astype(np.uint8)
+                np_crops.append(face_crop)
+        
+        # No-face fallback: load raw image (Xception will resize to 299x299 in _prepare_tensor)
+        if not np_crops and media_path:
+            try:
+                raw_img = Image.open(media_path).convert("RGB")
+                np_crops.append(np.array(raw_img))
+                logger.info("Xception: No faces found, falling back to raw image analysis.")
+            except Exception as e:
+                logger.warning(f"Xception: Failed to load raw image from {media_path}: {e}")
+        
+        if not np_crops:
             return ToolResult(
                 tool_name=self.tool_name, 
                 success=False, score=0.0, confidence=0.0, details={}, error=True,
-                error_msg="No tracked faces found.",
+                error_msg="No image data available for analysis.",
                 execution_time=time.time() - start_time,
-                evidence_summary="Xception detector: No faces found."
+                evidence_summary="Xception detector: No image data available."
             )
 
         worst_face_score = 0.0
@@ -173,22 +198,13 @@ class XceptionTool(BaseForensicTool):
                 
             device = next(model.parameters()).device if list(model.parameters()) else torch.device("cpu")
             
-            for face in tracked_faces:
-                # Xception uses higher-res crops when available, fallback to 224
-                # Use 380 crop if it exists, else 224
-                face_crop = getattr(face, "face_crop_380", getattr(face, "face_crop_224", None))
-                if face_crop is None:
-                    continue
-                
+            for face_crop in np_crops:
                 # Original orientation
                 tensor_norm = self._prepare_tensor(face_crop, device)
                 score = self._score_tensor(model, tensor_norm)
                 
                 # TTA: Horizontal Flip
-                if isinstance(face_crop, Image.Image):
-                    flipped = np.array(face_crop.transpose(Image.FLIP_LEFT_RIGHT))
-                else:
-                    flipped = cv2.flip(face_crop, 1)
+                flipped = cv2.flip(face_crop, 1)
                 
                 tensor_flip = self._prepare_tensor(flipped, device)
                 flip_score = self._score_tensor(model, tensor_flip)

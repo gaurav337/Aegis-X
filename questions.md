@@ -1,7 +1,7 @@
 # 🛡️ Aegis-X Interview Questions Guide
 
 ## Advanced Deepfake Forensic Detection Pipeline - Comprehensive Interview Preparation
-### **Version 3.0: Dual-Pipeline Architecture — Face Gate · CPU→GPU Gate · Silent Killer Fixes**
+### **Version 4.0: Three-Pronged Anomaly Shield — Decider/Supporter Hierarchy · GPU Conflict Guard · No-Face Pipeline**
 
 ---
 
@@ -200,7 +200,7 @@ def run_with_vram_cleanup(tool_loader, inference_fn, model_name, required_vram_g
   - Semantic coherence issues (hands, text, backgrounds)
   - Frequency domain artifacts from upsampling
 
-**Weight in ensemble:** 0.20 (highest tier — Tier 3 trust)
+**Weight in ensemble:** 0.22 (Decider — Tier 3 trust)
 
 ---
 
@@ -255,7 +255,7 @@ RPPG_NO_PULSE_IMPLIED_PROB = 0.85 # Implied fake probability if no pulse
 5. Score based on symmetry and presence
 ```
 
-**Weight:** 0.07 (Tier 2 — specialized but reliable when triggered)
+**Weight:** 0.04 (Supporter — Tier 1)
 
 ---
 
@@ -338,7 +338,9 @@ if univfd_score > SBI_SKIP_UNIVFD_THRESHOLD:
 # Score deviations as suspicious
 ```
 
-**Weight:** 0.18 (Tier 3 — highly reliable for face manipulations)
+**Weight:** 0.08 (Supporter — Tier 1, demoted from 0.20 in v4.0)
+
+> **v4.0**: Geometry was demoted from Decider (0.20) to Supporter (0.08) because noisy CPU heuristics were overriding GPU deep-learning models, causing false positives on real images with chaotic lighting.
 
 ---
 
@@ -360,7 +362,9 @@ ensemble_real_score = 1.0 - ensemble_fake_score
 **Key features:**
 1. **Confidence weighting**: Higher confidence tools get more influence
 2. **Context-aware routing**: Some tools abstain based on conditions (e.g., SBI skips if no compression detected)
-3. **Suspicion overdrive**: If any tool exceeds `SUSPICION_OVERRIDE_THRESHOLD`, use max-pooling instead of averaging
+3. **Suspicion overdrive**: If any GPU specialist exceeds `SUSPICION_OVERRIDE_THRESHOLD` (0.70), use max-pooling — but only after GPU Conflict Guard verifies specialists agree (spread ≤ 0.30)
+4. **Borderline Consensus**: If ≥2 GPU specialists cluster in [0.35, 0.55], their mean is boosted 1.25×
+5. **GPU Coverage Degradation**: Each abstained GPU specialist applies +10% boost to fake_score
 4. **Compression discounts**: DCT-detected compression reduces SBI/FreqNet weights (artifacts may be from JPEG, not deepfake)
 
 **Follow-up:** Why convert to "real probability" at the end?
@@ -388,11 +392,22 @@ Simple average: (0.95 + 0.10 + 0.15) / 3 = 0.40 → "REAL" ❌ WRONG!
 - A clear "real" in one dimension doesn't cancel a strong "fake" in another
 - Face-swap artifacts ≠ generative artifacts ≠ geometric distortions
 
-**Solution:**
+**Solution (v4.0 — Three-Pronged):**
 ```python
-max_prob = max(implied_probs)  # 0.95
-if max_prob > SUSPICION_OVERRIDE_THRESHOLD:  # e.g., 0.75
+# Prong 1: Suspicion Overdrive
+max_prob = max(gpu_implied_probs)  # 0.95
+spread = max(gpu_implied_probs) - min(gpu_implied_probs)  # conflict check
+if max_prob > SUSPICION_OVERRIDE_THRESHOLD and spread <= 0.30:  # GPU agreement
     fake_score = max_prob  # Use 0.95, not 0.40
+
+# Prong 2: Borderline Consensus
+borderline_specialists = [p for p in gpu_probs if 0.35 <= p <= 0.55]
+if len(borderline_specialists) >= 2:
+    boosted = mean(borderline_specialists) * 1.25  # corroboration
+
+# Prong 3: GPU Coverage Degradation
+for each abstained GPU specialist:
+    fake_score *= (1.0 + 0.10)  # +10% per blind spot
 ```
 
 **Analogy:** Medical diagnosis — one positive cancer test isn't negated by ten negative flu tests
@@ -1913,21 +1928,27 @@ Ensemble (all) | 94.8%    | 0.97  ← +5.6% accuracy gain
 ## Quick Reference: Key Numbers to Memorize
 
 ```
-Tool Weights (sum = 1.0):
-- UnivFD:    0.20 (Tier 3)
-- SBI:       0.20 (Tier 3)
-- Xception:  0.15 (Tier 2)
-- Geometry:  0.18 (Tier 3)
-- FreqNet:   0.09 (Tier 1)
-- Corneal:   0.07 (Tier 2)
-- rPPG:      0.06 (Tier 2)
-- Illumin.:  0.05 (Tier 1)
+Tool Weights (v4.0 — Decider/Supporter Hierarchy):
+  GPU Deciders (control verdict):
+  - UnivFD:    0.22 (Tier 3)
+  - SBI:       0.25 (Tier 3)
+  - Xception:  0.15 (Tier 2)
+  - FreqNet:   0.10 (Tier 1)
+
+  CPU Supporters (inform only):
+  - Geometry:  0.08 (Tier 1)
+  - rPPG:      0.06 (Tier 2)
+  - C2PA:      0.05 (Gate)
+  - DCT:       0.04 (Tier 1)
+  - Illumin.:  0.04 (Tier 1)
+  - Corneal:   0.04 (Tier 1)
 
 Thresholds:
-- ENSEMBLE_REAL_THRESHOLD:   0.15 (below = lean REAL)
-- ENSEMBLE_FAKE_THRESHOLD:   0.85 (above = lean FAKE)
-- EARLY_STOP_CONFIDENCE:     0.85
-- SUSPICION_OVERRIDE:        0.75 (max-pooling kicks in)
+- ENSEMBLE_REAL_THRESHOLD:   0.50 (below = lean REAL)
+- SUSPICION_OVERRIDE:        0.70 (max-pooling kicks in)
+- GPU_CONFLICT_SPREAD:       0.30 (above = specialists disagree)
+- BORDERLINE_CONSENSUS:      [0.35, 0.55] + 1.25× boost
+- GPU_COVERAGE_DEGRADATION:  +0.10 per abstained GPU specialist
 - CONFLICT_STD_THRESHOLD:    0.20
 
 Performance:
@@ -1998,21 +2019,22 @@ uncertainty = 2 / (total_evidence + 2)
 
 ## Appendix B: Complete Tool Arsenal Reference
 
-| # | Tool | Category | Trust Tier | Weight | VRAM | Key Signal |
-|---|------|----------|------------|--------|------|------------|
-| 1 | **C2PA** | Provenance | 3 (High) | 0.05 | 0 MB | Cryptographic signature from camera hardware |
-| 2 | **rPPG** | Biological | 2 (Med) | 0.06 | 0 MB | Photoplethysmography—heartbeat from color changes |
-| 3 | **DCT** | Frequency | 1 (Low) | 0.07 | 0 MB | Double-quantization artifacts in frequency domain |
-| 4 | **Geometry** | Geometric | 3 (High) | 0.18 | 0 MB | Anthropometric ratios (IPD, philtrum, vertical thirds) |
-| 5 | **Illumination** | Physical | 1 (Low) | 0.05 | 0 MB | Lighting direction consistency across face |
-| 6 | **Corneal** | Biological | 2 (Med) | 0.07 | 0 MB | Eye reflection symmetry and divergence |
-| 7 | **UnivFD** | Semantic | 3 (High) | 0.20 | ~800 MB | CLIP-based detection of generative AI fingerprints |
-| 8 | **Xception** | Semantic | 2 (Med) | 0.15 | ~600 MB | Face-swap blending artifacts (FaceForensics++) |
-| 9 | **SBI** | Generative | 3 (High) | 0.20 | ~1.2 GB | Blend boundary detection with GradCAM localization |
-| 10| **FreqNet** | Frequency | 1 (Low) | 0.09 | ~500 MB | Spectral anomalies in high-frequency bands |
+| # | Tool | Category | Trust Tier | Weight | Role | VRAM | Key Signal |
+|---|------|----------|------------|--------|------|------|------------|
+| 1 | **C2PA** | Provenance | 2 (Med) | 0.05 | Gate | 0 MB | Cryptographic signature from camera hardware |
+| 2 | **rPPG** | Biological | 2 (Med) | 0.06 | Supporter | 0 MB | Photoplethysmography—heartbeat from color changes |
+| 3 | **DCT** | Frequency | 1 (Low) | 0.04 | Supporter | 0 MB | Double-quantization artifacts in frequency domain |
+| 4 | **Geometry** | Geometric | 1 (Low) | 0.08 | Supporter | 0 MB | Anthropometric ratios (IPD, philtrum, vertical thirds) |
+| 5 | **Illumination** | Physical | 1 (Low) | 0.04 | Supporter | 0 MB | Lighting direction consistency across face |
+| 6 | **Corneal** | Biological | 1 (Low) | 0.04 | Supporter | 0 MB | Eye reflection symmetry and divergence |
+| 7 | **UnivFD** | Semantic | 3 (High) | 0.22 | Decider | ~800 MB | CLIP-based detection of generative AI fingerprints |
+| 8 | **Xception** | Semantic | 2 (Med) | 0.15 | Decider | ~600 MB | Face-swap blending artifacts (FaceForensics++) |
+| 9 | **SBI** | Generative | 3 (High) | 0.25 | Decider | ~1.2 GB | Blend boundary detection with GradCAM localization |
+| 10| **FreqNet** | Frequency | 1 (Low) | 0.10 | Decider | ~500 MB | Spectral anomalies in high-frequency bands |
 
-**Total Weight**: 1.00 ✓
+**Total Weight**: 1.03 (normalized at runtime)
 **Peak VRAM**: 1.8 GB (sequential loading)
+**No-Face Fallback**: FreqNet/UnivFD/Xception fall back to raw image analysis when no faces detected
 **CPU Tools**: 6 (60% of arsenal, 0% VRAM)
 **GPU Tools**: 4 (40% of arsenal, require VRAM management)
 
@@ -2084,7 +2106,10 @@ uncertainty = 2 / (total_evidence + 2)
 │  • Trust-tier aware weighting                               │
 │  • Compression discounting (DCT/SBI/FreqNet)                │
 │  • Conflict detection (std dev > 0.20)                      │
-│  • Suspicion override (max-pooling if any tool > 0.75)      │
+│  • Suspicion override (max-pooling if any GPU tool > 0.70)   │
+│  • GPU Conflict Guard (spread > 0.30 = conflict)             │
+│  • Borderline Consensus (1.25× boost for [0.35, 0.55] zone)  │
+│  • GPU Coverage Degradation (+10% per abstained specialist)   │
 │  • EMA smoothing for video temporal consistency             │
 └─────────────────────┬───────────────────────────────────────┘
                       │
@@ -2237,7 +2262,7 @@ Time (ms)    VRAM (MB)   Active Component
 
 *Last Updated: April 2026*
 *Document Version: 3.0 (Dual-Pipeline Final Edition)*
-*Total Questions: 58 core + 30 appendix deep-dives + 5 v3.0 architecture sections = 93 total*
+*Total Questions: 58 core + 30 appendix deep-dives + 5 v3.0 architecture sections + v4.0 anomaly shield updates = 93+ total*
 
 ---
 

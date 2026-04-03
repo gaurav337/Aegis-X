@@ -116,13 +116,38 @@ class FreqNetTool(BaseForensicTool):
         start_time = time.time()
         
         tracked_faces = input_data.get("tracked_faces", [])
-        if not tracked_faces:
+        media_path = input_data.get("media_path", None)
+        
+        # Build list of numpy crops (224x224, uint8, RGB) to analyze
+        np_crops = []
+        
+        if tracked_faces:
+            for face in tracked_faces:
+                face_crop = getattr(face, "face_crop_224", None)
+                if face_crop is None:
+                    continue
+                if isinstance(face_crop, Image.Image):
+                    face_crop = np.array(face_crop)
+                if face_crop.dtype != np.uint8:
+                    face_crop = face_crop.astype(np.uint8)
+                np_crops.append(face_crop)
+        
+        # No-face fallback: load raw image, resize to 224x224
+        if not np_crops and media_path:
+            try:
+                raw_img = Image.open(media_path).convert("RGB").resize((224, 224), Image.LANCZOS)
+                np_crops.append(np.array(raw_img))
+                logger.info("FreqNet: No faces found, falling back to raw image analysis.")
+            except Exception as e:
+                logger.warning(f"FreqNet: Failed to load raw image from {media_path}: {e}")
+        
+        if not np_crops:
             return ToolResult(
                 tool_name=self.tool_name,
                 success=False, score=0.0, confidence=0.0, details={}, error=True,
-                error_msg="No tracked faces found.",
+                error_msg="No image data available for analysis.",
                 execution_time=time.time() - start_time,
-                evidence_summary="FreqNet detector: No tracked faces found."
+                evidence_summary="FreqNet detector: No image data available."
             )
 
         worst_face_score = 0.0
@@ -144,15 +169,7 @@ class FreqNetTool(BaseForensicTool):
             spatial_prep = spatial_prep.to(self.device)
             dct_prep = dct_prep.to(self.device)
             
-            for face in tracked_faces:
-                face_crop = getattr(face, "face_crop_224", None)
-                if face_crop is None:
-                    continue
-                    
-                if isinstance(face_crop, Image.Image):
-                    face_crop = np.array(face_crop)
-                if face_crop.dtype != np.uint8:
-                    face_crop = face_crop.astype(np.uint8)
+            for face_crop in np_crops:
 
                 # Prepare tensor: expects (B, 3, H, W) float
                 tensor = torch.from_numpy(face_crop).permute(2, 0, 1).unsqueeze(0).float() / 255.0
