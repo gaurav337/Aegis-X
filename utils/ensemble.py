@@ -343,12 +343,10 @@ def calculate_ensemble_score(
     # A clear authentic in one dimension does NOT cancel a deepfake in another.
     max_prob = max(implied_probs) if implied_probs else 0.0
     
-    if max_prob > ENSEMBLE_FAKE_THRESHOLD:
-        # Aggressively prevent dilution by blending up to the highest suspicious feature
-        overdrive_factor = min(1.0, (max_prob - ENSEMBLE_FAKE_THRESHOLD) / (1.0 - ENSEMBLE_FAKE_THRESHOLD))
-        # Ensure it always scales up, never down
-        hybrid_score = max(base_ensemble, (base_ensemble * (1.0 - overdrive_factor)) + (max_prob * overdrive_factor))
-        ensemble_score = round(max(0.0, min(1.0, hybrid_score)), 4)
+    if max_prob > 0.50:
+        # Hard max-pooling: if any tool flags suspicion > 0.50, the ensemble perfectly mirrors it.
+        # This completely prevents dilution of orthogonal deepfake signatures.
+        ensemble_score = round(max_prob, 4)
     else:
         ensemble_score = round(max(0.0, min(1.0, base_ensemble)), 4)
         
