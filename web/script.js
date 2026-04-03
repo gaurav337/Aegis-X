@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const uploadContent = document.querySelector(".upload-content");
     const previewContainer = document.getElementById("preview-container");
     const imagePreview = document.getElementById("image-preview");
+    const videoPreview = document.getElementById("video-preview");
     const analyzeBtn = document.getElementById("analyze-btn");
     const removeBtn = document.getElementById("remove-btn");
 
@@ -47,15 +48,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleFile(file) {
         currentFile = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            imagePreview.src = e.target.result;
-            uploadContent.style.display = "none";
-            previewContainer.style.display = "flex";
-            uploadZone.style.borderStyle = "solid";
-            uploadZone.style.padding = "2rem";
-        };
-        reader.readAsDataURL(file);
+        const fileURL = URL.createObjectURL(file);
+        
+        if (file.type.startsWith("video/")) {
+            imagePreview.style.display = "none";
+            videoPreview.src = fileURL;
+            videoPreview.style.display = "block";
+        } else {
+            videoPreview.style.display = "none";
+            imagePreview.src = fileURL;
+            imagePreview.style.display = "block";
+        }
+
+        uploadContent.style.display = "none";
+        previewContainer.style.display = "flex";
+        uploadZone.style.borderStyle = "solid";
+        uploadZone.style.padding = "2rem";
     }
 
     removeBtn.addEventListener('click', (e) => {
@@ -230,11 +238,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     function resetUI() {
+        if (imagePreview.src) {
+            URL.revokeObjectURL(imagePreview.src);
+            imagePreview.src = "";
+        }
+        if (videoPreview.src) {
+            URL.revokeObjectURL(videoPreview.src);
+            videoPreview.src = "";
+        }
+
         currentFile = null;
         fileInput.value = "";
         uploadContent.style.display = "block";
         previewContainer.style.display = "none";
         
+        videoPreview.style.display = "none";
+        imagePreview.style.display = "none";
+
         uploadZone.classList.remove("hidden");
         loader.classList.add("hidden");
         resultsZone.classList.add("hidden");

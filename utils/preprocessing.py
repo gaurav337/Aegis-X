@@ -184,9 +184,16 @@ class TrackedFace:
 
     def __getitem__(self, item):
         """Provide dict-like bracket compatibility for tools that expect dictionaries."""
+        if not isinstance(item, str):
+            raise KeyError(item)
         if hasattr(self, item):
             return getattr(self, item)
         raise KeyError(item)
+
+    def __contains__(self, item):
+        if not isinstance(item, str):
+            return False
+        return hasattr(self, item)
 
 @dataclass
 class PreprocessResult:

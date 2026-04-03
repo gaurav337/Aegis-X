@@ -418,14 +418,10 @@ class SBITool(BaseForensicTool):
         confidence = min(1.0, best_score + 0.2) if boundary_detected else max(0.5, 1.0 - abs(best_score - 0.5))
 
         # Clamp visually confusing baseline scores for users when completely authentic
-        final_score = best_score
-        if not boundary_detected and best_score <= SBI_FAKE_THRESHOLD:
-            final_score = 0.1
-
         return ToolResult(
             tool_name=self.tool_name,
             success=True,
-            score=final_score,  # FIX: Use 'score' not 'fake_score'
+            score=best_score,  # FIX: Use 'score' not 'fake_score'
             confidence=confidence,
             details={
                 "boundary_detected": boundary_detected,

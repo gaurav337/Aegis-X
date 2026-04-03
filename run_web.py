@@ -64,5 +64,5 @@ app.mount("/", StaticFiles(directory="web", html=True), name="web")
 
 if __name__ == "__main__":
     import uvicorn
-    # run with `python run_web.py`
+    # run with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True ./.venv_main/bin/python run_web.py`
     uvicorn.run("run_web:app", host="0.0.0.0", port=8000, reload=True)

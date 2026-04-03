@@ -92,9 +92,11 @@ ollama serve
 
 ### Launch
 
+> **⚠️ Important:** Do NOT activate the virtual environment and run `python run_web.py`. Due to the dual-environment architecture, this often causes a `ModuleNotFoundError: No module named 'fastapi'` because of environment cross-contamination. Always use the explicit binary path with the required CUDA environment variables.
+
 ```bash
 # Start the web server
-PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True .venv_main/bin/python run_web.py
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True ./.venv_main/bin/python run_web.py
 
 # Open in browser
 # http://localhost:8000
