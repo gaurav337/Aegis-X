@@ -5,7 +5,10 @@ to Aegis-X Phase 1 specifications. Support tracking via CPU-SORT.
 """
 import cv2
 import numpy as np
-import mediapipe as mp
+try:
+    import mediapipe as mp
+except ImportError:
+    mp = None
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Dict
@@ -133,6 +136,9 @@ class SortTracker:
             d = trk.convert_x_to_bbox(trk.kf.statePost)
             if trk.time_since_update < 1 and (trk.hit_streak >= 1 or self.frame_count <= 1):
                 ret.append([d[0], d[1], d[2], d[3], trk.id])
+                
+        # Clean up dead tracks that missed more than 5 frames to prevent exploded ghost tracking
+        self.trackers = [trk for trk in self.trackers if trk.time_since_update <= 5]
         return np.array(ret)
 
     def associate(self, detections, trackers, iou_threshold):
@@ -219,57 +225,154 @@ class Preprocessor:
     def __init__(self, config: PreprocessingConfig):
         self.config = config
         
-        # FIX 2: Correct config attribute path
-        max_faces = getattr(config.preprocessing, 'max_subjects_to_analyze', 2)
-        self.face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=True,
-            refine_landmarks=True,
-            max_num_faces=max_faces,
-            min_detection_confidence=0.5
+        # FIX: Read max_subjects from config.preprocessing (not config directly)
+        self.max_faces = getattr(config.preprocessing, 'max_subjects_to_analyze', 3)
+        
+        # Download model if it doesn't exist
+        model_path = Path("models/face_landmarker.task")
+        if not model_path.exists():
+            import urllib.request
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            logger.info("Downloading MediaPipe Face Landmarker model...")
+            urllib.request.urlretrieve(
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                str(model_path)
+            )
+            
+        if mp is None:
+            raise ImportError("MediaPipe was not found but is required for Preprocessor initialization.")
+            
+        from mediapipe.tasks import python as mp_python
+        from mediapipe.tasks.python import vision
+        
+        # Force absolute path for model to ensure worker processes can find it
+        abs_model_path = Path(model_path).resolve()
+        if not abs_model_path.exists():
+            proj_root = Path(__file__).parent.parent
+            abs_model_path = (proj_root / "models" / "face_landmarker.task").resolve()
+            
+        base_options_v = mp_python.BaseOptions(model_asset_path=str(abs_model_path))
+        # VIDEO mode detector — used in Phase 1 (trajectory building with ordered frames)
+        # To prevent "crowd shuffling" (where MediaPipe rapidly drops real people because it hits a low limit), 
+        # we must set num_faces extremely high (10). We rely purely on the confidence (0.50) to ignore non-faces.
+        options_video = vision.FaceLandmarkerOptions(
+            base_options=base_options_v,
+            running_mode=vision.RunningMode.VIDEO,
+            num_faces=10,
+            min_face_detection_confidence=0.10,
+            min_face_presence_confidence=0.10,
+            min_tracking_confidence=0.10
         )
-        self.tracker = SortTracker()
+        self.face_mesh = vision.FaceLandmarker.create_from_options(options_video)
+        
+        # IMAGE mode detector — used in Phase 2 (best-frame extraction, random access)
+        # CRITICAL FIX: VIDEO mode requires strictly increasing timestamps.
+        # Phase 2 accesses frames out-of-order so we MUST use IMAGE mode here.
+        base_options_i = mp_python.BaseOptions(model_asset_path=str(abs_model_path))
+        options_image = vision.FaceLandmarkerOptions(
+            base_options=base_options_i,
+            running_mode=vision.RunningMode.IMAGE,
+            num_faces=10,
+            min_face_detection_confidence=0.10,
+            min_face_presence_confidence=0.10,
+            min_tracking_confidence=0.10
+        )
+        self.face_mesh_image = vision.FaceLandmarker.create_from_options(options_image)
+        # Lower IoU threshold (0.15) to aggressively lock tracks of the same person 
+        # even if they move rapidly or MediaPipe misses a frame, preventing track fragmentation
+        self.tracker = SortTracker(iou_threshold=0.15)
         
     def close(self):
-        if hasattr(self, 'face_mesh') and self.face_mesh is not None:
-            try:
-                self.face_mesh.close()
-            except Exception:
-                pass
-            self.face_mesh = None
+        for attr in ('face_mesh', 'face_mesh_image'):
+            detector = getattr(self, attr, None)
+            if detector is not None:
+                try:
+                    detector.close()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
 
     def __del__(self):
         self.close()
         
     def _get_landmarks(self, image: np.ndarray) -> Optional[List[np.ndarray]]:
-        if image is None or image.size == 0:
+        """Now acts as a wrapper for IMAGE-mode landmarker.
+        
+        Using MediaPipe's VIDEO mode in a stateless web server with arbitrary videos 
+        is fundamentally unstable due to its restrictive internal timestamp state. 
+        We instead process every frame as an independent IMAGE and rely 100% on our 
+        SortTracker to build temporal relationships.
+        """
+        return self._get_landmarks_image_mode(image)
+
+    def _get_landmarks_image_mode(self, image: np.ndarray) -> Optional[List[np.ndarray]]:
+        """IMAGE mode landmark detection for random-access frame queries (Phase 2).
+        
+        CRITICAL: This uses a separate IMAGE-mode detector that does NOT require
+        monotonically increasing timestamps. Use this when accessing frames out-of-order.
+        """
+        if image is None or image.size == 0 or not hasattr(self, 'face_mesh_image') or self.face_mesh_image is None:
             return None
-            
-        results = self.face_mesh.process(image)
-        if not results.multi_face_landmarks:
-            return None
-            
+        
         h, w = image.shape[:2]
+        
+        # Intelligent Square Padding (Essential for Multi-Face Vertical Video)
+        # Pad with black bars to make standard aspect ratio for the detector
+        if h != w:
+            max_dim = max(h, w)
+            pad_h = (max_dim - h) // 2
+            pad_w = (max_dim - w) // 2
+            padded = cv2.copyMakeBorder(image, pad_h, max_dim - h - pad_h, 
+                                        pad_w, max_dim - w - pad_w, 
+                                        cv2.BORDER_CONSTANT, value=[0, 0, 0])
+            offset_h, offset_w = pad_h, pad_w
+            detection_image = padded
+            proc_h, proc_w = max_dim, max_dim
+        else:
+            detection_image = image
+            offset_h, offset_w = 0, 0
+            proc_h, proc_w = h, w
+            
+        if not detection_image.flags['C_CONTIGUOUS']:
+            detection_image = np.ascontiguousarray(detection_image)
+        
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=detection_image)
+        try:
+            results = self.face_mesh_image.detect(mp_image)
+        except Exception as e:
+            logger.error(f"MediaPipe IMAGE-mode detection failed: {e}")
+            return None
+        
+        if not results.face_landmarks:
+            return None
+        
         faces_data = []
-        for face_landmarks in results.multi_face_landmarks:
+        for face_landmarks in results.face_landmarks:
             coords = np.zeros((478, 2), dtype=np.float32)
-            for i, lm in enumerate(face_landmarks.landmark):
-                coords[i] = [lm.x * w, lm.y * h]
-                
+            for i, lm in enumerate(face_landmarks):
+                # Remap to original coordinate system
+                coords[i] = [lm.x * proc_w - offset_w, lm.y * proc_h - offset_h]
+            
+            # Relaxed Out-of-Bounds check (Essential for Vertical Videos)
+            # Detections near edges are clipped instead of arbitrarily discarded
+            coords[:, 0] = np.clip(coords[:, 0], 0, w - 1)
+            coords[:, 1] = np.clip(coords[:, 1], 0, h - 1)
+            
             nose = coords[1]
             jaw_l = coords[234]
             jaw_r = coords[454]
+            margin_w, margin_h = w * 0.10, h * 0.10
             valid = True
             for node in [nose, jaw_l, jaw_r]:
-                if not (0 <= node[0] < w and 0 <= node[1] < h):
+                if not (-margin_w <= node[0] < w + margin_w and -margin_h <= node[1] < h + margin_h):
                     valid = False
                     break
-            
             if valid:
                 x_min, y_min = np.min(coords, axis=0)
                 x_max, y_max = np.max(coords, axis=0)
                 area = (x_max - x_min) * (y_max - y_min)
                 faces_data.append((area, coords))
-                
+        
         faces_data.sort(key=lambda x: x[0], reverse=True)
         if not faces_data:
             return None
@@ -368,6 +471,7 @@ class Preprocessor:
                 continue
                 
             # FIX 6: Ensure RGB before grayscale conversion
+            # load_image already returns RGB; removing redundant conversion
             gray = cv2.cvtColor(face_crop, cv2.COLOR_RGB2GRAY)
             sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
             
@@ -380,13 +484,16 @@ class Preprocessor:
     def process_media(self, path: Path) -> PreprocessResult:
         path_str = str(path)
         result = PreprocessResult(has_face=False)
-        self.tracker = SortTracker()
-        min_res = getattr(self.config.preprocessing, 'min_face_resolution', 64)
+        min_res = 20  # Very permissive: accept any face >= 20x20 pixels
+        logger.info(f"Preprocessor: min_face_resolution set to {min_res}px")
         
         try:
             if is_video_file(path_str):
                 result.original_media_type = "video"
                 frames = extract_frames(path_str, self.config.preprocessing.max_video_frames, self.config.preprocessing.extract_fps)
+                
+                self.tracker = SortTracker(iou_threshold=0.15)
+                
                 if not frames:
                     return result
                 result.frames_30fps = frames
@@ -398,23 +505,18 @@ class Preprocessor:
                 established_tracks: Dict[int, TrackedFace] = {}
                 
                 # --- PHASE 1: BUILD TRAJECTORIES ---
+                face_frames_count = 0
                 for i, frame in enumerate(frames):
                     lm_list = self._get_landmarks(frame)
                     dets = []
                     
                     if lm_list:
+                        face_frames_count += 1
                         for lm in lm_list:
                             x_min, y_min = np.min(lm, axis=0)
                             x_max, y_max = np.max(lm, axis=0)
-                            w = x_max - x_min
-                            h = y_max - y_min
-                            if w >= min_res and h >= min_res:
-                                dets.append([x_min, y_min, x_max, y_max])
-                                
-                        if not dets and lm_list:
-                            largest_lm = lm_list[0]
-                            x_min, y_min = np.min(largest_lm, axis=0)
-                            x_max, y_max = np.max(largest_lm, axis=0)
+                            # Always add detection regardless of size — SORT tracker filters junk
+                            # A generous bounding box helps track faces as they rotate
                             dets.append([x_min, y_min, x_max, y_max])
                             
                     dets = np.array(dets) if dets else np.empty((0, 4))
@@ -431,14 +533,20 @@ class Preprocessor:
                             )
                         established_tracks[trk_id].trajectory_bboxes[i] = (int(x1), int(y1), int(x2), int(y2))
                 
+                logger.info(f"Phase 1 complete: {face_frames_count}/{len(frames)} frames had faces, {len(established_tracks)} tracks established")
+                
                 # --- PHASE 2: EXTRACT CROPS PER-TRACK & HEURISTICS ---
                 gray_first = cv2.cvtColor(frames[0], cv2.COLOR_RGB2GRAY)
                 if gray_first.mean() < 50.0:
                     result.heuristic_flags.append("LOW_LIGHT")
                 
-                for trk_id, track_obj in established_tracks.items():
-                    # FIX 4: Less aggressive filtering for short videos
-                    min_track_length = min(15, len(frames) // 2)
+                # Sort tracks by length (number of detections) so we process the most stable/longest faces FIRST.
+                # This prevents hitting the max_faces limit with random 1-frame false positives!
+                sorted_tracks = sorted(established_tracks.items(), key=lambda item: len(item[1].trajectory_bboxes), reverse=True)
+                
+                for trk_id, track_obj in sorted_tracks:
+                    # Flat track length limit safely scaled for exceptionally short clips
+                    min_track_length = min(5, max(1, len(frames) // 3))
                     if len(track_obj.trajectory_bboxes) < min_track_length:
                         continue
                         
@@ -469,7 +577,9 @@ class Preprocessor:
                     total_area = frame_w * frame_h
                     sampled = 0
                     
-                    for f_idx in best_window[::max(1, len(best_window)//10)]: # sample ~10 frames
+                    # Enhanced Frame Sniping: Sample according to config
+                    snipe_samples = getattr(self.config.preprocessing, 'quality_snipe_samples', 10)
+                    for f_idx in best_window[::max(1, len(best_window)//snipe_samples)]: 
                         x1, y1, x2, y2 = track_obj.trajectory_bboxes[f_idx]
                         area = ((x2 - max(0,x1)) * (y2 - max(0,y1))) / float(total_area)
                         avg_area_ratio += area
@@ -491,15 +601,46 @@ class Preprocessor:
                         
                     best_idx, best_sharpness = self._select_sharpest_frame(frames, track_obj.trajectory_bboxes)
                     target_image = frames[best_idx]
-                    final_lms = self._get_landmarks(target_image)
+                    
+                    # CRITICAL FIX: Use IMAGE-mode detector for Phase 2.
+                    # The VIDEO-mode detector (_get_landmarks) requires strictly increasing timestamps.
+                    # Phase 2 accesses frames out-of-order, causing silent empty returns in VIDEO mode.
+                    final_lms = self._get_landmarks_image_mode(target_image)
                     
                     if final_lms is None:
-                        fallback_idx = list(track_obj.trajectory_bboxes.keys())[len(track_obj.trajectory_bboxes)//2]
-                        target_image = frames[fallback_idx]
-                        final_lms = self._get_landmarks(target_image)
-                        best_idx = fallback_idx 
+                        # Fallback 1: Try the middle frame of the window
+                        fallback_idx = best_window[len(best_window)//2]
+                        if fallback_idx != best_idx:
+                            target_image = frames[fallback_idx]
+                            final_lms = self._get_landmarks_image_mode(target_image)
+                            if final_lms:
+                                best_idx = fallback_idx
                         
                     if final_lms is None:
+                        # Fallback 2: Walk through all frames in the window
+                        for f_idx in best_window:
+                            if f_idx == best_idx:
+                                continue
+                            candidate = frames[f_idx]
+                            candidate_lms = self._get_landmarks_image_mode(candidate)
+                            if candidate_lms:
+                                final_lms = candidate_lms
+                                best_idx = f_idx
+                                target_image = candidate
+                                break
+
+                    # If still no landmarks, use the tracker's own bbox for a raw fallback crop
+                    if final_lms is None:
+                        x1, y1, x2, y2 = track_obj.trajectory_bboxes[best_idx]
+                        track_obj.best_frame_idx = best_idx
+                        track_obj.face_crop_224 = cv2.resize(frames[best_idx][max(0,y1):min(frame_h,y2), max(0,x1):min(frame_w,x2)], (224, 224))
+                        track_obj.face_crop_380 = cv2.resize(frames[best_idx][max(0,y1):min(frame_h,y2), max(0,x1):min(frame_w,x2)], (380, 380))
+                        track_obj.heuristic_flags.append("ALIGNMENT_FAILED_RAW_FALLBACK")
+                        result.tracked_faces.append(track_obj)
+                        
+                        if len(result.tracked_faces) >= self.max_faces:
+                            logger.info(f"Subject limit reached ({self.max_faces}). Stopping extraction.")
+                            break
                         continue
                         
                     trk_box = track_obj.trajectory_bboxes[best_idx]
@@ -529,10 +670,43 @@ class Preprocessor:
                     
                     result.tracked_faces.append(track_obj)
                     
+                    if len(result.tracked_faces) >= self.max_faces:
+                        logger.info(f"Subject limit reached ({self.max_faces}). Stopping extraction.")
+                        break
+                    
+                # SAFETY FALLBACK: If no tracks passed the filters but we have established tracks,
+                # take the best one anyway to avoid a complete "0 faces detected" failure.
+                if not result.tracked_faces and established_tracks:
+                    # Pick the track with most detections
+                    best_id = max(established_tracks.keys(), key=lambda k: len(established_tracks[k].trajectory_bboxes))
+                    track_obj = established_tracks[best_id]
+                    
+                    # Attempt a final landmark extraction on the middle frame
+                    frames_present = sorted(list(track_obj.trajectory_bboxes.keys()))
+                    mid_idx = frames_present[len(frames_present)//2]
+                    target_image = frames[mid_idx]
+                    lms = self._get_landmarks_image_mode(target_image)
+                    
+                    frame_h, frame_w = target_image.shape[:2]
+                    track_obj.best_frame_idx = mid_idx
+                    if lms:
+                        track_obj.landmarks = lms[0]
+                        track_obj.face_crop_224 = self._crop_align(target_image, lms[0], self.config.preprocessing.face_crop_size)
+                        track_obj.face_crop_380 = self._crop_align(target_image, lms[0], self.config.preprocessing.sbi_crop_size)
+                    else:
+                        # Raw crop fallback if landmarks still fail
+                        x1, y1, x2, y2 = track_obj.trajectory_bboxes[mid_idx]
+                        track_obj.face_crop_224 = cv2.resize(target_image[max(0,y1):min(frame_h,y2), max(0,x1):min(frame_w,x2)], (224, 224))
+                        track_obj.face_crop_380 = cv2.resize(target_image[max(0,y1):min(frame_h,y2), max(0,x1):min(frame_w,x2)], (380, 380))
+                        track_obj.heuristic_flags.append("SAFETY_FALLBACK_RAW_CROP")
+                    
+                    result.tracked_faces.append(track_obj)
+                    
                 if len(result.tracked_faces) > 0:
                     result.has_face = True
                     result.selected_frame_index = result.tracked_faces[0].best_frame_idx
-                    result.selected_frame_sharpness = best_sharpness
+                    # Safe: best_sharpness may not be defined if safety fallback was used
+                    result.selected_frame_sharpness = locals().get('best_sharpness', 0.0)
                     
                     # Calculate Gate Metrics
                     frame_w, frame_h = frames[0].shape[1], frames[0].shape[0]
@@ -576,7 +750,8 @@ class Preprocessor:
                 image = load_image(path)
                 result.frames_30fps = [image]
                 
-                final_landmarks_list = self._get_landmarks(image)
+                # Use IMAGE-mode for static images (no timestamp requirements)
+                final_landmarks_list = self._get_landmarks_image_mode(image)
                 if final_landmarks_list is None:
                     return result
                     
