@@ -13,8 +13,14 @@ from utils.ensemble import EnsembleAggregator
 from core.llm import generate_verdict
 from utils.logger import setup_logger
 from core.data_types import ToolResult
-import torch
-from utils.vram_manager import run_with_vram_cleanup
+try:
+    import torch
+    from utils.vram_manager import run_with_vram_cleanup
+    HAS_TORCH = True
+except ImportError:
+    torch = None
+    run_with_vram_cleanup = None
+    HAS_TORCH = False
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 logger = setup_logger(__name__)
@@ -27,10 +33,10 @@ GPU_VRAM_REQUIREMENTS = {
 }
 
 FACE_GATE_THRESHOLDS = {
-    "min_confidence": 0.60,
-    "min_face_area_ratio": 0.01,
-    "min_frames_with_faces": 0.30,
-    "min_face_pixel_area": 2500,
+    "min_confidence": 0.50,            # v6.1: Lowered for distant subjects
+    "min_face_area_ratio": 0.002,      # v6.1: Specialized for Vertical Videos
+    "min_frames_with_faces": 0.10,     # v6.1: Support short action clips
+    "min_face_pixel_area": 1024,       # v6.1: 32x32 minimum detection
 }
 
 class AgentEvent:
@@ -51,6 +57,8 @@ class ForensicAgent:
             tool_registry=self.registry,
             thresholds=(0.5, 0.5)  # Ensembles are handled independently here
         )
+        # v6.1: Persistent executor for batch throughput (eliminates 4,000+ thread pool spawns)
+        self.executor = ThreadPoolExecutor(max_workers=2)
         
     def _make_error_result(self, tool_name: str, error_msg: str, start_time: float) -> ToolResult:
         return ToolResult(
@@ -69,9 +77,8 @@ class ForensicAgent:
         start_time = time.time()
         try:
             tool = self.registry.get_tool(tool_name)
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(tool.execute, input_data)
-                result = future.result(timeout=timeout)
+            future = self.executor.submit(tool.execute, input_data)
+            result = future.result(timeout=timeout)
             return result
         except FuturesTimeoutError:
             logger.error(f"Timeout executing {tool_name} after {timeout}s")
@@ -80,7 +87,7 @@ class ForensicAgent:
             logger.error(f"Error executing {tool_name}: {e}\n{traceback.format_exc()}")
             return self._make_error_result(tool_name, str(e), start_time)
 
-    def analyze(self, preprocess_result: Any, media_path: str = None) -> Generator[AgentEvent, Any, dict]:
+    def analyze(self, preprocess_result: Any, media_path: str = None, include_llm: bool = True, fast_mode: bool = False) -> Generator[AgentEvent, Any, dict]:
         """
         Main analysis loop — orchestrates CPU → GPU Gate → GPU Phase → Ensemble → LLM.
         """
@@ -89,6 +96,7 @@ class ForensicAgent:
             "tracked_faces": preprocess_result.tracked_faces,
             "frames_30fps": preprocess_result.frames_30fps,
             "original_media_type": getattr(preprocess_result, "original_media_type", "image"),
+            "fast_mode": fast_mode,
         }
         
         flags = getattr(preprocess_result, "heuristic_flags", [])
@@ -109,8 +117,9 @@ class ForensicAgent:
         yield AgentEvent("PIPELINE_SELECTED", data={"face_pipeline": pass_face_gate})
 
         # ── SEGMENT A: CPU PHASE ──
+        # v6.1: Fast Mode skips expensive CPU signals for 1,000-sample throughput
         cpu_tools_to_run = ["check_c2pa", "run_dct"]
-        if pass_face_gate:
+        if pass_face_gate and not fast_mode:
             if not getattr(preprocess_result, "insufficient_temporal_data", False) and input_data["original_media_type"] != "image":
                 cpu_tools_to_run.append("run_rppg")
             
@@ -159,27 +168,19 @@ class ForensicAgent:
                         "degraded": False
                     })
                 return
-
-        # ── SEGMENT B: CPU->GPU GATE ──
-        # Calculate CPU phase confidence
-        cpu_results = [r for name, r in self.ensemble.tool_results.items() if name in cpu_tools_to_run and r.success and not r.error and r.details.get("liveness_label") not in ("ABSTAIN", "ERROR")]
         
+        # ── SEGMENT B: CPU->GPU GATE ──
+        cpu_results = [r for name, r in self.ensemble.tool_results.items() if name in cpu_tools_to_run and r.success and not r.error and r.details.get("liveness_label") not in ("ABSTAIN", "ERROR")]
         decisive_results = [r for r in cpu_results if abs(r.score - 0.5) > 0.05]
         
         gate_decision = "FULL_GPU"
         unison_agreement = False
         agg_conf = 0.0
         
-        if len(decisive_results) < 2:
-            gate_decision = "FULL_GPU"
-        else:
+        if len(decisive_results) >= 2:
             baseline_weights = {
-                "run_rppg": 0.35,
-                "run_geometry": 0.25,
-                "run_dct": 0.15,
-                "run_illumination": 0.10,
-                "run_corneal": 0.10,
-                "check_c2pa": 0.05
+                "run_rppg": 0.35, "run_geometry": 0.25, "run_dct": 0.15,
+                "run_illumination": 0.10, "run_corneal": 0.10, "check_c2pa": 0.05
             }
             active_weights = {r.tool_name: baseline_weights.get(r.tool_name, 0.0) for r in decisive_results}
             total_active_weight = sum(active_weights.values())
@@ -198,14 +199,12 @@ class ForensicAgent:
             first_dir = decisive_results[0].score > 0.5
             unison = all((r.score > 0.5) == first_dir for r in decisive_results)
             
-            # Independent domains check
             domains = set()
             for r in decisive_results:
                 if r.tool_name == "run_rppg": domains.add("bio")
                 elif r.tool_name == "run_geometry": domains.add("phys")
                 elif r.tool_name == "run_dct": domains.add("freq")
                 elif r.tool_name == "check_c2pa": domains.add("auth")
-                # illumination & corneal are not counted independently for unison pass against geometry per spec
                 
             if unison and len(domains) >= 2:
                 unison_agreement = True
@@ -232,71 +231,31 @@ class ForensicAgent:
                 
             for tool_name in gpu_sequence:
                 yield AgentEvent("TOOL_STARTED", tool_name)
-                
-                # Manual sequential execution to emulate run_with_vram_cleanup
-                start_time = time.time()
-                try:
-                    tool = self.registry.get_tool(tool_name)
-                    
-                    req_vram = GPU_VRAM_REQUIREMENTS.get(tool_name, 0.6)
-                    
-                    def make_loader(t): 
-                        return lambda: t
-                    def make_inference(data):
-                        return lambda t: t.execute(data)
-                        
-                    with ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(
-                            run_with_vram_cleanup, 
-                            make_loader(tool), 
-                            make_inference(input_data), 
-                            model_name=tool_name, 
-                            required_vram_gb=req_vram
-                        )
-                        result = future.result(timeout=60)
-                    self.ensemble.add_result(result)
-                    
-                    if hasattr(torch.cuda, "empty_cache"):
-                        torch.cuda.empty_cache()
-                        
-                    yield AgentEvent("tool_complete", tool_name, data={
-                        "success": result.success,
-                        "score": result.fake_score,
-                        "confidence": result.confidence,
-                        "evidence_summary": result.evidence_summary,
-                        "error_msg": result.error_msg,
-                    })
-                except FuturesTimeoutError:
-                    logger.error(f"Timeout executing {tool_name} after 60s")
-                    self.ensemble.add_result(self._make_error_result(tool_name, "Timeout after 60s", start_time))
-                    if hasattr(torch.cuda, "empty_cache"):
-                        torch.cuda.empty_cache()
-                    yield AgentEvent("tool_complete", tool_name, data={"success": False, "score": 0.5, "confidence": 0.0, "evidence_summary": "Tool timed out.", "error_msg": "Timeout after 60s"})
-                except Exception as e:
-                    logger.error(f"VRAM/Inference Error executing {tool_name}: {e}\n{traceback.format_exc()}")
-                    # Fallback counts as ABSTAIN/ERROR
-                    self.ensemble.add_result(self._make_error_result(tool_name, str(e), start_time))
-                    if hasattr(torch.cuda, "empty_cache"):
-                        torch.cuda.empty_cache()
-                    yield AgentEvent("tool_complete", tool_name, data={"success": False, "score": 0.5, "confidence": 0.0, "evidence_summary": "Tool failed.", "error_msg": str(e)})
+                result = self._safe_execute_tool(tool_name, input_data, timeout=120)
+                self.ensemble.add_result(result)
+                # v6.1: Removed empty_cache() to solve 'stuck' behavior and sync stalls
+                # if HAS_TORCH and hasattr(torch.cuda, "empty_cache"):
+                #     torch.cuda.empty_cache()
+                yield AgentEvent("tool_complete", tool_name, data={
+                    "success": result.success, "score": result.fake_score,
+                    "confidence": result.confidence, "error_msg": result.error_msg,
+                })
 
-        # Check DEGRADED status if >50% of mapped tools errored out
-        is_degraded = False
+        # Check DEGRADED status
         total_errors = sum(1 for r in self.ensemble.tool_results.values() if r.error)
-        if len(self.ensemble.tool_results) > 0 and total_errors / len(self.ensemble.tool_results) > 0.5:
-            logger.warning("Agent Output flagged as DEGRADED due to excessive tool failures.")
-            is_degraded = True
+        is_degraded = len(self.ensemble.tool_results) > 0 and total_errors / len(self.ensemble.tool_results) > 0.5
 
-        # ── ENSEMBLE SCORING ──
         final_score = self.ensemble.get_final_score()
         verdict_str = self.ensemble.get_verdict()
         
-        yield AgentEvent("llm_start")
-        explanation = yield from generate_verdict(
-            ensemble_score=final_score,
-            tool_results=self.ensemble.tool_results,
-            verdict=verdict_str,
-        )
+        explanation = "LLM reasoning skipped for performance."
+        if include_llm:
+            yield AgentEvent("llm_start")
+            explanation = yield from generate_verdict(
+                ensemble_score=final_score,
+                tool_results=self.ensemble.tool_results,
+                verdict=verdict_str,
+            )
         
         yield AgentEvent("verdict", data={
             "verdict": verdict_str,
