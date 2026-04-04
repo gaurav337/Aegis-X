@@ -7,8 +7,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Models and downloaded weights
-models/
+# Models and downloaded weight
+models
 *.pt
 *.pth
 *.onnx
